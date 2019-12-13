@@ -1,0 +1,5 @@
+#!/bin/bash
+# gets the unique mutations from several mutation maps
+
+
+cat $@ | cut -f 1-4 | sort -k1,1 -k2,2n | uniq

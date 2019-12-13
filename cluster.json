@@ -1,0 +1,221 @@
+{
+    "__default__":
+    {
+        "partition" : "hbfraser,owners,hns,normal",
+        "time" : "02:00:00",
+        "mem" : "8G",
+        "cpus" : "1",
+        "jobname" : "{rule}.{wildcards}",
+        "error" : "/scratch/users/paedugar/somaticMutationsProject/clusterFiles/{rule}.{wildcards}.err",
+        "output" : "/scratch/users/paedugar/somaticMutationsProject/clusterFiles/{rule}.{wildcards}.out"
+    },
+    
+    "test":
+    {
+        "time" : "01:00:05"
+    },
+    
+    "check_fastqIntegrity":
+    {
+        "time" : "1:00:00"
+    },
+    
+    "star_map":
+    {
+        "mem" : "40G",
+        "time" : "10:00:00",
+        "cpus" : "8"
+    },
+    
+    "sort_bam":
+    {
+        "time" : "4:00:00",
+        "mem" : "16G"
+    },
+    
+    "organize_tissues":
+    {
+        "time" : "00:10:00",
+        "mem" : "2G"
+    },
+    
+    "create_mutationPileup":
+    {
+       "time" : "08:00:00",
+       "mem" : "4G"
+    },
+    
+    "eliminateGermline_correctContext":
+    {
+        "time" : "06:00:00"
+    },
+    
+    "get_stranded_context_counts":
+    {
+        "time" : "04:00:00"
+    },
+    
+    "create_coverageMaps":
+    {
+        "time" : "02:00:00",
+        "mem" : "2G"
+    },
+    
+    "merge_pileups":
+    {
+        "time" : "00:30:00"
+    },
+    
+    
+    "call_mutations":
+    {
+        "time" : "01:00:00",
+        "mem":"4G"
+    },
+    
+    "call_MutationSignatures":
+    {
+        "cpus" : "16",
+        "mem" : "64G"
+    },
+    
+    "run_signature_analyzer":
+    {
+        "mem" : "16G",
+        "time" : "12:00:00"
+    },
+    
+    "find_unbiasedNsignatures":
+    {
+        "cpus" : "16",
+        "mem" : "64G",
+        "time" : "48:00:00"
+    },
+    
+    "run_signatures_NMF":
+    {
+        "cpus" : "8",
+        "mem" : "16G",
+        "time" : "48:00:00"
+    },
+    
+    "run_dndscv":
+    {
+        "mem" : "16G",
+        "time" : "2:00:00"
+    },
+    
+    "plot_mutationsVsMetadata_biologicalCors":
+    {
+        "mem" : "16G",
+        "time" : "4:00:00"
+    },
+    
+    "process_bamForGatk":
+    {
+        "mem" : "4G",
+        "time" : "30:00"
+    },
+    
+    "run_gatk":
+    {
+        "mem" : "4G",
+        "cpus" : "1",
+        "time" : "2:00:00"
+    },
+    
+    "run_gatkFilter":
+    {
+        "mem" : "4G",
+        "time" : "15:00"
+    },
+    
+    "eliminate_germline":
+    {
+        "mem" : "4G",
+        "time" : "1:00:00"
+    },
+    
+    "run_mutationSignatureGWAS":
+    {
+        "mem" : "4G",
+        "time" : "4:00:00"
+    },
+    
+    "do_GWAS":
+    {
+        "mem" : "4G",
+        "time" : "6:00:00"
+    },
+    
+    "get_closestExon":
+    {
+        "mem" : "4G",
+        "time" : "15:00"
+    },
+    
+    "get_mutationEnrichmentCancerDrivers":
+    {
+        "time" : "6:00:00"
+    },
+    
+    "addFilters_mutationPileup":
+    {
+        "time" : "01:00:00",
+        "mem" : "4G"
+    },
+    
+    "perform_tSNE":
+    {
+        "time" : "03:00:00",
+        "mem" : "32G"
+    },
+    
+    "get_cosmic_mutations":
+    {
+        "time" : "00:30:00",
+        "mem" : "4G"
+    },
+    
+    "call_mutations_eliminate_PoN":
+    {
+        "time" : "00:10:00",
+        "mem" : "4G"
+    },
+    
+    "mutation_association_expression_targeted":
+    {
+        "time" : "08:00:00",
+        "mem" : "8G"
+    },
+    
+    "mutation_association_expression_targeted_create_expMat":
+    {
+        "mem" : "8G"
+    },
+    
+    "mutation_association_expression_targeted_plot":
+    {
+        "time" : "08:00:00",
+        "mem" : "16G"
+    }, 
+    
+    "gwas_clonality":
+    {
+        "mem" : "8G",
+        "time" : "12:00:00"
+    },
+    
+    "gwas_selection":
+    {
+        "mem" : "8G",
+        "time" : "12:00:00"
+    },
+    
+    "create_tables":
+    {
+        "mem" : "8G",
+        "time" : "1:00:00"
+    }
+    
+}

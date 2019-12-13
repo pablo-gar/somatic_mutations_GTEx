@@ -1,0 +1,144 @@
+{
+    
+    "Title" : "Original pipeline",
+    "Description" : "Call mutations and do analyses on the main pipeline",
+    
+    "genomeDir" : "/scratch/PI/hbfraser/genomes/GRCh37p13/STAR_masked_index/",
+    "genomeFasta" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/genome/GRCh37.p13.maskedGenome.patched.fasta",
+    "genomeFastaOriginal" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/genome/GRCh37.p13.genome.encode.fa",
+    "genomeSizeFile" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GRCh37.p13.maskedGenome.patched.chromSizesMainChrs",
+    "scratchDir" : "/scratch/users/paedugar/somaticMutationsProject/",
+    "fastqDir" : "/scratch/users/paedugar/somaticMutationsProject/fastq/",
+    "fastqIntegrityDir" : "/scratch/users/paedugar/somaticMutationsProject/fastqIntegrity/",
+    "fastqPurgatoryDir" : "/scratch/users/paedugar/somaticMutationsProject/fastqPurgatory/",
+    "mappingDir" : "/scratch/users/paedugar/somaticMutationsProject/mappedReads/",
+    
+    
+    
+    "sraTable" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GtexSraRunTable.txt",
+    "vcfFile" : "/scratch/PI/hbfraser/gtex/raw/Genotype/phg000830.v1.GTEx_WGS.genotype-calls-vcf.c1/GTEx_Analysis_2016-01-15_v7_WholeGenomeSeq_652Ind_GATK_HaplotypeCaller.vcf.gz",
+    "vcfFileCommon" : "/scratch/PI/hbfraser/gtex/raw/Genotype/phg000830.v1.GTEx_WGS.genotype-calls-vcf.c1/GTEx_Analysis_2016-01-15_v7_WholeGenomeSeq_635Ind_PASS_AB02_GQ20_HETX_MISS15_PLINKQC_MAF0.01.vcf.gz",
+    
+    "samtoolsBin" : "~/scripts/FraserLab/somaticMutationsProject/mappingMutationCalling_pipeline/samtools_1.3.1_sherlock1/bin/samtools",
+    
+    "auxiliaryFiles":
+    {
+        "dir" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles",
+        "genomeFolder": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/genome/",
+        "hg19_blacklistedBed": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GCA_000001405.14_GRCh37.p13_no_alt_analysis_set_MASKED_REGIONS.bed",
+        "hg19_chromSizes" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GRCh37.p13.maskedGenome.patched.chromSizesMainChrs",
+        "metadataGTEX": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/metaGTEx.txt",
+        "sampleMetadataGTEX": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GTEx_v7_Annotations_SampleAttributesDS.txt",
+        "genotypePCA" : "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GTEx_Analysis_2016-01-15_v7_WholeGenomeSeq_635Ind_PASS_AB02_GQ20_HETX_MISS15_PLINKQC_PCA.txt",
+        "sraTable": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/GtexSraRunTable.txt",
+        "tissues": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/tissues.txt",
+        "cancerSignatures": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/cancerSignatures.txt",
+        "GTF_gtex": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/gencode.v19.genes.v7.patched_contigs.gtf",
+        "GTF_gtex_exonBoundaries": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/gencode.v19.genes.v7.patched_contigs.onlyExonBoundaries.bed",
+        "cancerSignaturesStandard": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/cancerSignaturesStandard.txt",
+        "expresionAllTissues": "/scratch/groups/hbfraser/gtex/raw/Expression/v7/GTEx_Analysis_2016-01-15_v7_RNASeQCv1.1.8_gene_tpm.gct",
+        "readCountTable": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/readCounts.txt",
+        "rnaEditSites": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/Human_AG_all_hg19_v2.txt",
+        "rnaEditSitesBed": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/Human_AG_all_hg19_v2.bed",
+        "rnaEditSitesBCF": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/Human_AG_all_hg19_v2_chrStart.txt",
+        "readsGenesAllTissues": "/scratch/PI/hbfraser/gtex/raw/Expression/v7/GTEx_Analysis_2016-01-15_v7_RNASeQCv1.1.8_gene_reads.gct",
+        "cancerDrivers": "/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/tcga_driverCancerGenes.txt",
+        "sampleTable":"/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/sample_table.txt",
+        "transcriptomeDiversity":"/scratch/users/paedugar/somaticMutationsProject/auxiliaryFiles/transcriptome_shannon_diversity.txt"
+    },
+    
+    
+    
+    "projectDir": "/scratch/users/paedugar/somaticMutationsProject",
+    
+    
+    
+    "All folders below": "They will be appended to projectDir or scratchDir. Thus they are relative paths",
+    
+    "pileupDir" : "pileups/",
+    "pileupDirNoBlacklist" : "pileupsNoBlacklist/",
+    "pileupDirWithGermline":  "pileupsGerm/",
+    "mutationDir" : "mutationFiles/",
+    
+    "tempDir" : "tempDir/",
+    
+    "MAF_toWorkOn": "n6_0.0_0.7",
+    "missMatchesMapping" : "10",
+    "seqQualityCutoff" : "30",
+    "contextLength" : "3",
+    "exonJunctionDistanceCutoff" : "7",
+    
+    "pileupPartitionSize" : "25000000",
+    
+    "coverageCutoff" : "40",
+    "nSupportingCutoff" : "15",
+    "MAFlowCutoff" : "0",
+    "MAFhighCutoff" : "0.7",
+    
+    
+    
+    "mutationCountDir":
+    {
+        "root" : "mutationCount",
+        "count" : "mutationCount/count",
+        "context" : "mutationCount/context",
+        "position" : "mutationCount/position",
+        "map" : "mutationCount/map",
+        "qual" : "mutationCount/qual",
+        "closestExon" : "mutationCount/closestExon",
+        "tissueMap" : "mutationCount/tissueMap"
+    },
+    
+    
+    
+    "generalMutationAnalyses" :
+    {
+       "root" : "generalMutationAnalyses/results/",
+       "MAFhistograms" : "generalMutationAnalyses/results/MAFhistograms/",
+       "distanceHistograms" : "generalMutationAnalyses/results/distanceMutations/",
+       "countsPerMutType" : "generalMutationAnalyses/results/countsPerMutType/",
+       "countsPerMutTypeNormalized" : "generalMutationAnalyses/results/countsPerMutTypeNormalized/",
+       "totalCountsHist" : "generalMutationAnalyses/results/totalCountsHist/",
+       "totalCountsBox" : "generalMutationAnalyses/results/totalCountsBox/",
+       "mutationsVsReads" : "generalMutationAnalyses/results/mutationsVsReads/",
+       "mutationsVsMetadata" : "generalMutationAnalyses/results/mutationsVsMetadata/",
+       "mutationsVsExpression" : "generalMutationAnalyses/results/mutationsVsExpression/",
+       "mutationsVsTranscriptomeDiversity" : "generalMutationAnalyses/results/mutationsVsTranscriptomeDiversity/",
+       "distanceExon" : "generalMutationAnalyses/results/distanceClosestExonHist/"
+    },
+    
+    "cancer" :
+    {
+       "root" : "cancer",
+       "driverEnrichment" : "cancer/driverEnrichment"
+    },
+    
+    "mutationSignaturesDir":
+    {
+        "root": "mutationSignatures/",
+        "mutationMatrix" : "mutationSignatures/mutationMatrix/",
+        "mutationSignaturesNMF" : "mutationSignatures/mutationSignaturesNMF/",
+        "consensusMutationSignatures": "mutationSignatures/consensusMutationSignatures",
+        "tSNE" : "mutationSignatures/tSNE",
+        "GWAS" : "mutationSignatures/GWAS"
+    },
+    
+    "mutationSignatureOptions":
+    {
+        "nSignatures" : "10",
+        "nRuns" : "5000",
+        "mutationFrequency" : "FALSE",
+        "oligonucleotideNorm" : "FALSE",
+        "clusterFolder" : "/scratch/users/paedugar/somaticMutationsProject/clusterFiles/"
+    },
+    
+    "selectionDir":
+    {
+        "root": "selection/",
+        "dndsout": "selection/dndsout/",
+        "dndsout_annotatedTables": "selection/dndsout_annotatedTables/",
+        "strand_differences": "selection/strand_differences/",
+        "dndsGlobPlots" : "selection/dndsGlobalPlots/"
+    }
+    
+}

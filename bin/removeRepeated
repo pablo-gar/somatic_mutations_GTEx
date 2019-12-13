@@ -1,0 +1,5 @@
+#!/bin/bahs
+repeatedMuts=$1
+mutationFile=$2
+
+bedtools subtract -a <(./mutationToBed $mutationFile) -b <(./mutationToBed <(cut -f 2- $repeatedMuts))

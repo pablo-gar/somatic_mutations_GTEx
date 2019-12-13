@@ -1,0 +1,174 @@
+
+import os, pandas
+import snakemakeMethods as SM
+
+
+##--------------------------------------------------##
+## GLOBAL
+#
+localrules: all
+configfile: "../config.json"
+ruleorder:  get_fdr > compile_all_mutations_lax 
+config = SM.expandPaths(config)
+
+# VARS
+DIR_NAME = "method_validation"
+MUT_DIR = os.path.join(DIR_NAME, "mutations")
+EXO_FIRST = os.path.join(MUT_DIR, "exome_first")
+RNA_FIRST = os.path.join(MUT_DIR, "RNA_first")
+
+MUT_DIR_LAX = os.path.join(DIR_NAME, "mutations_lax")
+EXO_FIRST_LAX = os.path.join(MUT_DIR_LAX, "exome_first")
+RNA_FIRST_LAX = os.path.join(MUT_DIR_LAX, "RNA_first")
+
+FDR = os.path.join(DIR_NAME, "fdr")
+
+DEPTH_DIR = "depth_bam"
+
+
+# SAMPLES
+ALL_TISSUES, ALL_MAF, ALL_SAMPLES, = glob_wildcards(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue,Whole_Blood.*}', '{maf,.+}', '{sample,\w+}.txt'))
+
+# Reads conversion table for sample ids
+sample_ids = pandas.read_table(os.path.join(config["auxiliaryFiles"]["dir"], "GtexSraRunTable_assay_conversion_table.txt"), na_filter = False)
+
+seen = {}
+MAF = []
+SAMPLES_EXO = []
+SAMPLES_RNA = []
+
+allSampleCodes = [ ALL_SAMPLES[i] + "." + ALL_MAF[i] for i in range(len(ALL_SAMPLES))]
+
+for i in range(len(ALL_SAMPLES)):
+
+    sampleCode = allSampleCodes[i]
+    
+    if sampleCode in seen:
+        continue
+    
+    seen[sampleCode] = True
+    
+    if "EXO" in ALL_TISSUES[i]:
+        for sample in sample_ids[sample_ids['WXS'].str.contains(ALL_SAMPLES[i])]['RNA-Seq'].values[0].split(","):
+            
+            sampleCode = sample  + "." + ALL_MAF[i]
+            if sampleCode in allSampleCodes and not (sampleCode in seen):
+                MAF.append(ALL_MAF[i])
+                SAMPLES_EXO.append(ALL_SAMPLES[i])
+                SAMPLES_RNA.append(sample)
+                
+                seen[sampleCode] = True
+    else:
+        for sample in sample_ids[sample_ids['RNA-Seq'].str.contains(ALL_SAMPLES[i])]['WXS'].values[0].split(","):
+            
+            sampleCode = sample  + "." + ALL_MAF[i]
+            if sampleCode in allSampleCodes and not (sampleCode in seen):
+                MAF.append(ALL_MAF[i])
+                SAMPLES_RNA.append(ALL_SAMPLES[i])
+                SAMPLES_EXO.append(sample)
+                
+                seen[sampleCode] = True
+
+print(len(SAMPLES_RNA))
+print(len(SAMPLES_EXO))
+print(len(MAF))
+
+# MERGE using a more lax approach, focusing in all
+MERGE_SCRIPT_LAX = """
+    bedtools intersect -a <(../bin/mutationToBed $first) -b $depth -sorted -g {input.genome} -wa -wb > $depthIntersect
+    
+    python3 ../mutationCalling/python/printMutationMap_fromPileup.py $second True 1 {config[coverageCutoff]} 0.0 1.0 $mutationMap.temp
+    
+    ../bin/mutationToBed $mutationMap.temp > $mutationMap
+    rm $mutationMap.temp
+    
+    bedtools intersect -a $depthIntersect -b $mutationMap -sorted -g   {input.genome} -wa -wb -loj > $finalIntersect
+    awk -v FS="\\t" '{{if ($19 == ".") {{$21=$13; $19="X"; $22=0}} print $1 "\\t" $2 "\\t" $4 "\\t" $5 "\\t" $7 "\\t" $8 "\\t" $7-$8 "\\t" $4 "\\t" $19 "\\t" $21 "\\t" $22 "\\t" $21 - $22}}' $finalIntersect > $out
+    
+    rm $depthIntersect $finalIntersect
+"""
+
+
+
+##--------------------------------------------------##
+
+
+##--------------------------------------------------##
+## PIPELINE
+
+rule all:
+    input: 
+        ##Lax mutations
+        expand(os.path.join(config["projectDir"], RNA_FIRST_LAX, '{maf}-{sampleRNA}-{sampleEXO}.txt'), zip, maf = MAF, sampleRNA = SAMPLES_RNA, sampleEXO = SAMPLES_EXO)
+        
+        
+rule call_mutations_lax:
+    input:
+        rnaMut = lambda wildcards: os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "Whole_Blood", wildcards.maf, wildcards.sampleRNA + ".txt"),
+        exoMut = lambda wildcards: os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "Whole_Blood_EXO", wildcards.maf, wildcards.sampleEXO + ".txt"),
+        rnaPileup = lambda wildcards: os.path.join(config["projectDir"], config["pileupDir"], "Whole_Blood", wildcards.sampleRNA + ".txt"),
+        exoPileup = lambda wildcards: os.path.join(config["projectDir"], config["pileupDir"], "Whole_Blood_EXO", wildcards.sampleEXO + ".txt"),
+        rnaDepth = lambda wildcards: os.path.join(config["projectDir"], DEPTH_DIR, "Whole_Blood", wildcards.sampleRNA + ".bed.gzip"), 
+        exoDepth = lambda wildcards: os.path.join(config["projectDir"], DEPTH_DIR, "Whole_Blood_EXO", wildcards.sampleEXO + ".bed.gzip"), 
+        genome = os.path.join(config["auxiliaryFiles"]["dir"], "genome", "GRCh37.p13.genome.encode.genomeFile.bedtools")
+    output:
+        rnaFirst = os.path.join(config["projectDir"], RNA_FIRST_LAX, '{maf}-{sampleRNA}-{sampleEXO}.txt'),
+        exoFirst = os.path.join(config["projectDir"], EXO_FIRST_LAX, '{maf}-{sampleRNA}-{sampleEXO}.txt')
+    shell:
+        """
+        ml fraserconda
+        
+        first={input.rnaMut}
+        second={input.exoPileup}
+        depth={input.exoDepth}
+        out={output.rnaFirst}
+        
+        mutationMap={config[projectDir]}/{config[tempDir]}/$(basename $first)_$(basename $second)_{wildcards.maf}.map
+        depthIntersect={config[projectDir]}/{config[tempDir]}/$(basename $first)_$(basename $second)_{wildcards.maf}.lax.depth
+        finalIntersect={config[projectDir]}/{config[tempDir]}/$(basename $first)_$(basename $second)_{wildcards.maf}.lax.final
+        """ + \
+        MERGE_SCRIPT_LAX + \
+        """
+        first={input.exoMut}
+        second={input.rnaPileup}
+        depth={input.rnaDepth}
+        out={output.exoFirst}
+        
+        mutationMap={config[projectDir]}/{config[tempDir]}/$(basename $first)_$(basename $second)_{wildcards.maf}.map
+        depthIntersect={config[projectDir]}/{config[tempDir]}/$(baseanme $first)_$(basename $second)_{wildcards.maf}.lax.depth
+        finalIntersect={config[projectDir]}/{config[tempDir]}/$(baseanme $first)_$(basename $second)_{wildcards.maf}.lax.final
+        """ + \
+        MERGE_SCRIPT_LAX
+
+rule compile_all_mutations_lax:
+    input:
+        #Lax mutations
+        expand(os.path.join(config["projectDir"], RNA_FIRST_LAX, '{maf}-{sampleRNA}-{sampleEXO}.txt'), zip, maf = MAF, sampleRNA = SAMPLES_RNA, sampleEXO = SAMPLES_EXO),
+        expand(os.path.join(config["projectDir"], EXO_FIRST_LAX, '{maf}-{sampleRNA}-{sampleEXO}.txt'), zip, maf = MAF, sampleRNA = SAMPLES_RNA, sampleEXO = SAMPLES_EXO)
+    output:
+        temp(os.path.join(config["projectDir"], config["tempDir"], 'method_validation_lax_mutations_done.txt'))
+    shell:
+        '''
+        echo DONE > {output}
+        '''
+
+rule get_fdr:
+    input:
+        os.path.join(config["projectDir"], config["tempDir"], 'method_validation_lax_mutations_done.txt')
+    params:
+        mutationDir = os.path.join(config["projectDir"], MUT_DIR_LAX, '{experiment}'),
+        outPrefix = os.path.join(config["projectDir"], FDR, '{experiment}', 'fdr')
+    output:
+        os.path.join(config["projectDir"], FDR, '{experiment}', 'fdr_byMut_permute_TRUE.pdf'),
+        os.path.join(config["projectDir"], FDR, '{experiment}', 'fdr_byMut_permute_FALSE.pdf'),
+        os.path.join(config["projectDir"], FDR, '{experiment}', 'fdr_all_permute_TRUE.pdf'),
+        os.path.join(config["projectDir"], FDR, '{experiment}', 'fdr_all_permute_FALSE.pdf')
+    shell:
+        '''
+        ml R/3.4.0
+        cd R
+        Rscript get_agreement.R {params}
+        '''
+    
+        
+

@@ -1,0 +1,9 @@
+mutationSignatures/.snakemake
+mappingMutationCalling_pipeline/.snakemake
+selectionAnalyses/.snakemake
+generalMutationAnalyses/.snakemake
+*.snakemake
+*__pycache__
+bin/gatk-4.0.3.0/
+*NMF_*
+tempAnalyses/compare_germline/

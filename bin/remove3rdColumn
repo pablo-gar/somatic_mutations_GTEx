@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#if [ "$1" == ""]; then
+#    "First argument is needed"
+#    exit 1
+#fi
+
+paste <(cut -f1-2 $1) <(cut -f4- $1)

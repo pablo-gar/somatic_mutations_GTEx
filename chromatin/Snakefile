@@ -1,0 +1,231 @@
+# Run line
+import os, sys, pandas
+
+
+
+##--------------------------------------------------##
+## GLOBAL
+
+configfile: "../config.json"
+localrules: all,  check_roadmap_exon_signal
+
+##
+# GLOBALS
+
+roadmap_url = "https://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/foldChange/"
+roadmap_suffix = ".fc.signal.bigwig"
+
+exon_bed = os.path.join(config["auxiliaryFiles"]["dir"], "gencode.v19.genes.v7.patched_contigs.onlyExons.uniq_ids.bed")
+genome_bed = os.path.join(config["auxiliaryFiles"]["dir"], "genome", "GRCh37.p13.genome.encode.genomeFile.bedtools")
+
+##
+
+# Roadmap conversion table 
+roadmap = pandas.read_table(os.path.join(config["auxiliaryFiles"]["dir"], "roadmap_epigenomics", "gtex_roadmap_tissues.txt"), index_col = 0)
+roadmap = roadmap.dropna()
+
+# Histone modifications
+roadmap_mods_file = open(os.path.join(config["auxiliaryFiles"]["dir"], "roadmap_epigenomics", "gtex_roadmap_marks.txt"), "r") 
+roadmap_mods = roadmap_mods_file.readlines()
+roadmap_mods_file.close()
+roadmap_mods = [x.strip() for x in roadmap_mods]
+
+# Find out which samples we have coverage for
+coverage_samples = []
+
+#for root, dirnames, files in os.walk(os.path.join(config["scratchDir"], "depth_bam")):
+#    for file in files:
+#        if file.endswith(".bed.gzip"):
+#             coverage_samples.append(os.path.splitext(os.path.splitext(os.path.basename(file))[0])[0])
+
+
+# Sample ids
+TISSUES_ALL, MAF_ALL, SAMPLES, = glob_wildcards(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue,\w+}', '{maf,.+}', '{sample,\w+}.txt'))
+coverage_samples = SAMPLES
+
+T = []
+M = []
+S = []
+for i in range(len(TISSUES_ALL)):
+    if SAMPLES[i] in coverage_samples:
+        T.append(TISSUES_ALL[i])
+        M.append(MAF_ALL[i])
+        S.append(SAMPLES[i])
+        
+TISSUES_ALL = T
+MAF_ALL = M
+SAMPLES = S
+
+
+TISSUES_uniq = set(TISSUES_ALL)
+TISSUES_NOEXO = list(TISSUES_uniq.copy())
+MAF_uniq = list(set(MAF_ALL))
+
+if "Whole_Blood_EXO" in TISSUES_NOEXO:
+    TISSUES_NOEXO.remove("Whole_Blood_EXO")
+
+
+
+TISSUES = []
+MAF = []
+ROAD = []
+
+for tis in TISSUES_NOEXO:
+    if tis in roadmap.index.tolist():
+        for maf in MAF_uniq:
+            TISSUES.append(tis)
+            MAF.append(maf)
+            ROAD.append(roadmap["Epigenome ID (EID)"][tis])
+                
+
+roadmap_mods_expanded = [item for item in roadmap_mods for i in range(len(TISSUES))]
+print(MAF)
+
+
+##--------------------------------------------------##
+
+
+##--------------------------------------------------##
+## PIPELINE
+
+rule all:
+    input: 
+        # Download files
+        #expand(os.path.join(config["projectDir"], "chromatin", "roadmap_bigwig", "{roadmapId}-{mod}" + roadmap_suffix), roadmapId = roadmap["Epigenome ID (EID)"].tolist(), mod = roadmap_mods),
+        # Get signal per exon
+        #expand(os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal_compiled", "{roadmapId}.txt"), roadmapId = roadmap["Epigenome ID (EID)"].tolist()),
+        # Get mutations per exon
+        #expand(os.path.join(config["projectDir"], "chromatin", "mutation_exon_signal", '{tissue}', '{maf}', '{sample}.txt'), zip, tissue = TISSUES_ALL, maf = MAF_ALL, sample = SAMPLES),
+        # Get mutations per exon
+        #expand(os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "{tissue}-{roadmapId}.pdf"), zip, maf = MAF, tissue = TISSUES, roadmapId = ROAD),
+        #expand(os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "{tissue}-{roadmapId}.txt"), zip, maf = MAF, tissue = TISSUES, roadmapId = ROAD),
+        # Get all plots 
+        expand(os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "1_all_tissues.pdf"), maf = MAF)
+
+##--------------------------------------------------##
+## ROADMAP DATA processing
+
+rule dowload_roadmap_bigwig:
+    output:
+        os.path.join(config["projectDir"], "chromatin", "roadmap_bigwig", "{roadmapId}-{mod}" + roadmap_suffix)
+    params:
+        lambda wildcards: roadmap_url + wildcards.roadmapId + "-" + wildcards.mod + roadmap_suffix 
+    shell:
+        """
+        wget -O {output} {params}
+        """
+        
+rule get_bigwig_exon_signal:
+    input:
+        os.path.join(config["projectDir"], "chromatin", "roadmap_bigwig", "{roadmapId}-{mod}" + roadmap_suffix)
+    params:
+        exon_bed
+    output:
+        os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal", "{roadmapId}-{mod}.txt")
+    shell:
+        """
+        ml kent
+        
+        bigWigAverageOverBed {input} {params} {output}
+        """
+
+rule check_roadmap_exon_signal:
+    input:
+        expand(os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal", "{roadmapId}-{mod}.txt"), roadmapId = roadmap["Epigenome ID (EID)"].tolist(), mod = roadmap_mods)
+    output:
+        temp(os.path.join(config["scratchDir"], config["tempDir"], "roadmap_done"))
+    shell:
+        """
+        echo DONE > {output}
+        """
+        
+rule merge_chromatin_per_sample:
+    input:
+        os.path.join(config["scratchDir"], config["tempDir"], "roadmap_done")
+    params:
+        lambda wildcards: os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal", wildcards.roadmapId)
+    output:
+        os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal_compiled", "{roadmapId}.txt")
+    shell:
+        """
+        array=({params}*)
+        
+        for index in ${{!array[*]}}
+        do
+            if [ "$index" == "0" ] 
+            then 
+                header=$(basename ${{array[$index]}} | perl -pe 's/.+-(.+).txt/exon\\t\\1/')
+                cut -f1,6 ${{array[$index]}}  > {output}.compiled
+                cat <(echo -e "$header") {output}.compiled > {output}.temp && mv {output}.temp {output}.compiled
+            else
+                header=$(basename ${{array[$index]}} | perl -pe 's/.+-(.+).txt/\\1/')
+                paste <(cat {output}.compiled) <(cat <(echo "$header") <(cut -f 6 ${{array[$index]}})) > {output}.temp && mv {output}.temp {output}.compiled
+            fi
+        done
+        
+        mv {output}.compiled {output}
+        """
+        
+##--------------------------------------------------##
+## MUTATIONS DATA processing
+
+rule get_exon_mutations:
+    input:
+        mutations = os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}', '{sample}.txt'),
+        depth_bam = os.path.join(config["scratchDir"], "depth_bam", "{tissue}", "{sample}.bed.gzip")
+    params:
+        exon_bed = exon_bed,
+        genome_bed = genome_bed,
+        header = '"chr\\tstart\\tend\\texon\\ttotal_bps_seq\\tmutations\\tmutations2\\texon_length\\tmut_rate"'
+    output:
+        os.path.join(config["projectDir"], "chromatin", "mutation_exon_signal", '{tissue}', '{maf}', '{sample}.txt')
+    shell:
+        """
+        bedtools map -a {params.exon_bed} -b {input.depth_bam} -g {params.genome_bed} | bedtools coverage -a stdin -b <(../bin/mutationToBed {input.mutations}) | awk 'BEGIN{{print {params.header}}}; $5>0' > {output}
+        """
+        
+rule all_exon_mutations:
+    input:
+        expand(os.path.join(config["projectDir"], "chromatin", "mutation_exon_signal", '{tissue}', '{maf}', '{sample}.txt'), zip, tissue = TISSUES_ALL, maf = MAF_ALL, sample = SAMPLES)
+    output:
+        temp(os.path.join(config["scratchDir"], config["tempDir"], "exon_mutations_done"))
+    shell:
+        """
+        echo DONE > {output}
+        """
+    
+        
+##--------------------------------------------------##
+## Mutations and chromatin correlations 
+#
+
+rule plot_chromatin_mutations:
+    input:
+        chromatin = os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal_compiled", "{roadmapId}.txt"),
+        tempExon = os.path.join(config["scratchDir"], config["tempDir"], "exon_mutations_done")
+    params:
+        os.path.join(config["projectDir"], "chromatin", "mutation_exon_signal", '{tissue}', '{maf}')
+    output:
+        os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "{tissue}-{roadmapId}.pdf"),
+        os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "{tissue}-{roadmapId}.txt")
+    shell:
+        """
+        ml R/3.4.0
+        Rscript R/mutation_chromatin_correlation.R {output} {input.chromatin} {params}/*
+        """
+        
+rule plot_chromatin_all_tissues:
+    input:
+        expand(os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{{maf}}", "{tissue}-{roadmapId}.pdf"), zip, tissue = TISSUES, roadmapId = ROAD),
+        expand(os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{{maf}}", "{tissue}-{roadmapId}.txt"), zip, tissue = TISSUES, roadmapId = ROAD)
+    params:
+        os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}")
+    output:
+        os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "1_all_tissues_heatmap.pdf"),
+        os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "1_all_tissues.pdf")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R
+        Rscript plot_all_tissues_correlations.R {params} {output}
+        '''

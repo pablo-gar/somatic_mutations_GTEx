@@ -1,0 +1,15 @@
+### Requirments
+- Unix, all pipeline were run on Ubuntu 14.04
+- BCF tools 1.6
+- bedtool 2.26
+- samtools 1.6
+- R 3.4:
+    - 
+    - Tidiverse
+    - Bioconductor:
+        - GenomicRanges
+- python 3.6:
+    - pysam
+    - pandas
+    - numpy
+- snakemake

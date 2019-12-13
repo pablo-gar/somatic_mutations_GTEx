@@ -1,0 +1,532 @@
+# Run line
+
+import os, sys
+from time import gmtime, strftime
+
+
+
+##--------------------------------------------------##
+## GLOBAL
+
+configfile: "../config.json"
+localrules: create_readCountTableCurrent, create_readCountTableCompiled, get_cancer_mutations_false_positives
+
+# Get samples for which we have depth info
+coverage_samples = []
+for root, dirnames, files in os.walk(os.path.join(config["scratchDir"], "depth_bam")):
+    for file in files:
+        if file.endswith(".bed.gzip"):
+             coverage_samples.append(os.path.splitext(os.path.splitext(os.path.basename(file))[0])[0])
+
+
+
+# Sample ids
+TISSUES_ALL, MAF_ALL, SAMPLES, = glob_wildcards(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue,\w+}', '{maf,.+}', '{sample,\w+}.txt'))
+
+#TISSUES_ALL = TISSUES_ALL[0:50]
+#MAF_ALL = MAF_ALL[0:50]
+#SAMPLES = SAMPLES[0:50]
+
+MAF = set(MAF_ALL)
+MAF = {config["MAF_toWorkOn"]}
+print(MAF)
+
+# Selecting samples for which we have depth info and maf
+to_include = {i for i, element in enumerate(SAMPLES) if (element in coverage_samples) and (MAF_ALL[i] in MAF)}
+
+SAMPLES = [element for i, element in enumerate(SAMPLES) if i in to_include]
+MAF_ALL = [element for i, element in enumerate(MAF_ALL) if i in to_include]
+TISSUES_ALL = [element for i, element in enumerate(TISSUES_ALL) if i in to_include]
+
+
+#TISSUES_ALL = TISSUES_ALL[0:1]
+TISSUES = set(TISSUES_ALL)
+TISSUES_NOEXO = TISSUES.copy()
+if "Whole_Blood_EXO" in TISSUES_NOEXO:
+    TISSUES_NOEXO.remove("Whole_Blood_EXO")
+    
+    
+    print(set(TISSUES_NOEXO))
+##--------------------------------------------------##
+
+
+##--------------------------------------------------##
+## PIPELINE
+
+rule all:
+    input: 
+        ## Get plots of cancer drivers, long list
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'driverCount_per_tissue.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'scatterDriver_per_tissue.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'impact_mutations.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'presence_heatmap.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'dnds_mutations.pdf'), maf = MAF),
+        ## VAF plots for all mutations
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'VAF_missense_nonsense', '{maf}', 'last_exon_{last_exon}_All.pdf'), maf = MAF, last_exon = ["TRUE", "FALSE"])
+        ## Get VAF plots of cosmic cancer mutations
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'vaf_comparison.pdf'), maf = MAF)
+        ## Get plots of cancer drivers
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'driverCount_per_tissue.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'scatterDriver_per_tissue.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'impact_mutations.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'presence_heatmap.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'dnds_mutations.pdf'), maf = MAF),
+        # Finding false negatives
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives', '{maf}', 'cancer_mutations_false_positives_histogram.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives', '{maf}', 'cancer_mutations_false_positives.txt'), maf = MAF),
+        ## Get cancer driver mutations
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{maf}', '{tissue}.txt'), tissue = TISSUES, maf = MAF),
+        #
+        ### Get percentages of cosmic in samples plots
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'percentage_overlap_all_tissues.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'percentage_overlap_all_tissues_wrongMut.pdf'), maf = MAF),
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'randomized_percentage_overlap_all_tissues.pdf'), maf = MAF),
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'randomized_percentage_overlap_all_tissues_wrongMut.pdf'), maf = MAF),
+        #
+        ### Get number of cosmic mutations per sample
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count', '{tissue}', '{maf}', '{sample}.txt'), zip, sample = SAMPLES, tissue = TISSUES_ALL, maf = MAF_ALL),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map', '{tissue}', '{maf}', '{sample}.txt'), zip, sample = SAMPLES, tissue = TISSUES_ALL, maf = MAF_ALL),
+        ## Get randomized cosmic maps
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map_randomized', '{tissue}', '{maf}', '{sample}.txt'), zip, sample = SAMPLES, tissue = TISSUES_ALL, maf = MAF_ALL)
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count_randomized', '{tissue}', '{maf}', '{sample}.txt'), zip, sample = SAMPLES, tissue = TISSUES_ALL, maf = MAF_ALL),
+        ## Get cancer driver enrichment plots
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'all_drivers.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'individual_drivers_heatmap.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'individual_drivers_histogram.pdf'), maf = MAF),
+        #### Get cancer driver enrichment
+        #expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'ksTestResults.txt'), tissue = TISSUES_NOEXO, maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsWilcoxResults.txt'),  tissue = TISSUES_NOEXO, maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsFoldChangeByGene.txt'),  tissue = TISSUES_NOEXO, maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsFoldChangeByGene_random.txt'),  tissue = TISSUES_NOEXO, maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsPvalsPlot.pdf'),  tissue = TISSUES_NOEXO, maf = MAF)
+
+rule get_mutationEnrichmentCancerDrivers:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}')
+    params:
+        os.path.join(config["auxiliaryFiles"]["cancerDrivers"])
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'ksTestResults.txt'),
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsWilcoxResults.txt'),
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsFoldChangeByGene.txt'),
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsFoldChangeByGene_random.txt'),
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsPvalsPlot.pdf')
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverGenesOverlap.R {output} {params} {input}/*
+        '''
+        
+rule all_mutationEnrichmentCancerDrivers:
+    input:
+        expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'ksTestResults.txt'), tissue = TISSUES_NOEXO, maf = MAF),
+        expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsWilcoxResults.txt'), tissue = TISSUES_NOEXO, maf = MAF),
+        expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsFoldChangeByGene.txt'), tissue = TISSUES_NOEXO, maf = MAF),
+        expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsFoldChangeByGene_random.txt'), tissue = TISSUES_NOEXO, maf = MAF),
+        expand(os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsPvalsPlot.pdf'), tissue = TISSUES_NOEXO, maf = MAF)
+    output:
+        temp(os.path.join(config["projectDir"], config["tempDir"], "done_mutationCancerEnrichment"))
+    shell:
+        """
+        echo DONE > {output}
+        """
+
+rule plot_cancerEnrichment_allGenes:
+    input:
+        os.path.join(config["projectDir"], config["tempDir"], "done_mutationCancerEnrichment")
+    params:
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '*', '{maf}', 'permutationsWilcoxResults.txt')
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'all_drivers.pdf')
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverGenesOverlap_plot.R {output} {params}
+        '''
+        
+rule plot_cancerEnrichment_individualGenes:
+    input:
+        os.path.join(config["projectDir"], config["tempDir"], "done_mutationCancerEnrichment"),
+    params:
+        os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '*', '{maf}', 'permutationsFoldChangeByGene.txt')
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'individual_drivers_heatmap.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'individual_drivers_histogram.pdf'),
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverGenesOverlap_plotByGene.R {output} {params}
+        '''
+
+rule get_driverMutations:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}')
+    params:
+        os.path.join(config["auxiliaryFiles"]["dir"], "tcga_driverMutations.txt")
+        #os.path.join(config["auxiliaryFiles"]["dir"], "tcga_driverCancerGenes.txt")
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{maf}', '{tissue}.txt'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'expression', '{maf}', '{tissue}.txt')
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverMutationsOverlap.R {output} {params} {input}/*
+        '''
+        
+rule get_driverMutations_long:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}')
+    params:
+        #os.path.join(config["auxiliaryFiles"]["dir"], "tcga_driverMutations.txt")
+        os.path.join(config["auxiliaryFiles"]["dir"], "tcga_driverCancerGenes.txt")
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'mutations', '{maf}', '{tissue}.txt'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'expression', '{maf}', '{tissue}.txt')
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverMutationsOverlap.R {output} {params} {input}/*
+        '''
+
+rule get_cancer_mutations_false_positives:
+    input:
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{{maf}}', '{tissue}.txt'), tissue = TISSUES_NOEXO)
+    params:
+        histogram_cutoff = 3.5,
+        mutation_dir = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{maf}')
+    output:
+        histogram_plot = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives', '{maf}', 'cancer_mutations_false_positives_histogram.pdf'),
+        false_pos_table = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives', '{maf}', 'cancer_mutations_false_positives.txt') 
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript create_falseNegative_mutations_table.R {params} {output}
+        '''
+        
+rule get_cancer_mutations_false_positives_long_list:
+    input:
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'mutations', '{{maf}}', '{tissue}.txt'), tissue = TISSUES_NOEXO)
+    params:
+        histogram_cutoff = 3.5,
+        mutation_dir = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'mutations', '{maf}')
+    output:
+        histogram_plot = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives_long_list', '{maf}', 'cancer_mutations_false_positives_histogram.pdf'),
+        false_pos_table = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives_long_list', '{maf}', 'cancer_mutations_false_positives.txt') 
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript create_falseNegative_mutations_table.R {params} {output}
+        '''
+        
+rule run_dndscv_tissues_merged:
+    input:
+        false_pos = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives', '{maf}', 'cancer_mutations_false_positives.txt'),
+        maps = expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{{maf}}"), tissue = TISSUES_NOEXO)
+    params:
+        outprefix =  os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}/"),
+        maps = " ".join(expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{maf}/*"), tissue = TISSUES_NOEXO, maf = list(MAF)[0]))
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}", "dndsout_sel_cv.txt"),
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}", "dndsout_sel_loc.txt"),
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}", "dndsout_globalInds.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript dndsInMutationMaps_simpleAllGenes.R {params.outprefix} {input.false_pos} {params.maps}
+        '''
+        
+rule run_dndscv_tissues_merged_long_list:
+    input:
+        false_pos = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives_long_list', '{maf}', 'cancer_mutations_false_positives.txt'),
+        maps = expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{{maf}}"), tissue = TISSUES_NOEXO)
+    params:
+        outprefix =  os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}/"),
+        maps = " ".join(expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{maf}/*"), tissue = TISSUES_NOEXO, maf = list(MAF)[0]))
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}", "dndsout_sel_cv.txt"),
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}", "dndsout_sel_loc.txt"),
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}", "dndsout_globalInds.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript dndsInMutationMaps_simpleAllGenes.R {params.outprefix} {input.false_pos} {params.maps}
+        '''
+
+rule plot_all_info_cancerDrivers:
+    input:
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{{maf}}', '{tissue}.txt'), tissue = TISSUES_NOEXO)
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'expression', '{{maf}}', '{tissue}.txt'), tissue = TISSUES_NOEXO), 
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}", "dndsout_sel_loc.txt"),
+        ancient(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "observed_predicted_counts_per_tissue", "{maf}-predicted_observed.txt"))
+        
+    params:
+        prefix = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}/'),
+        dnds_file = os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}", "dndsout_sel_loc.txt"),
+        mutationsDir = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{maf}'),
+        expressionDir = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'expression', '{maf}'),
+        expected_mutations_file = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "observed_predicted_counts_per_tissue", "{maf}-predicted_observed.txt")
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'driverCount_per_tissue.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'scatterDriver_per_tissue.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'impact_mutations.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'presence_heatmap.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'dnds_mutations.pdf')
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverGenes_plotTissues.R {params}
+        '''
+        
+rule plot_all_info_cancerDrivers_long_list:
+    input:
+        #expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations', '{{maf}}', '{tissue}.txt'), tissue = TISSUES_NOEXO)
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'expression', '{{maf}}', '{tissue}.txt'), tissue = TISSUES_NOEXO), 
+        os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}", "dndsout_sel_loc.txt"),
+        ancient(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "observed_predicted_counts_per_tissue", "{maf}-predicted_observed.txt"))
+        
+    params:
+        prefix = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}/'),
+        dnds_file = os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}", "dndsout_sel_loc.txt"),
+        mutationsDir = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'mutations', '{maf}'),
+        expressionDir = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'expression', '{maf}'),
+        expected_mutations_file = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "observed_predicted_counts_per_tissue", "{maf}-predicted_observed.txt")
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'driverCount_per_tissue.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'scatterDriver_per_tissue.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'impact_mutations.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'presence_heatmap.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'dnds_mutations.pdf')
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/cancer
+        Rscript mutationsDriverGenes_plotTissues.R {params}
+        '''
+    
+#WITH DEPTH
+rule get_cosmic_mutations:
+    """
+    For each sample print 5 columns: 
+        sample id, 
+        number of mutations that agree,
+        number of mutations that don't agree,
+        total number of mutations in sample,
+        total number of mutation in cosmic.
+    """
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}', '{sample}.txt')
+    params:
+        cosmic_bed = os.path.join(config["auxiliaryFiles"]["dir"], "cosmic_v85_CosmicMutantExport_simple_watson.bed"),
+        depth_bed = os.path.join(config["scratchDir"], "depth_bam", "{tissue}", "{sample}.bed.gzip"),
+        genome_bedtools = os.path.join(config["auxiliaryFiles"]["dir"], "genome", "GRCh37.p13.genome.encode.genomeFile.bedtools")
+    output:
+        countFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count', '{tissue}', '{maf}', '{sample}.txt'),
+        mapFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map', '{tissue}', '{maf}', '{sample}.txt')
+    shell:
+        '''
+        cosmic={config[scratchDir]}/{config[tempDir]}/{wildcards.sample}_{wildcards.maf}.cosmic.bed
+        
+        # Get cosmic mutations that were covered by sequencing
+        bedtools intersect -sorted -a {params.cosmic_bed} -b {params.depth_bed} -g {params.genome_bedtools} > $cosmic
+        
+        # Get cosmic mutations overlap with mine
+        ../bin/mutationToBed {input} | bedtools intersect -sorted -wa -wb -a $cosmic -b stdin > {output.mapFile}
+        
+        intersect=$(awk -v OFS="\\t" -v FS="\\t" -v Match=0 -v notMatch=0 '{{if ($5 == $11) {{Match++}} else {{notMatch++}} }} END{{print Match "\\t" notMatch}}' {output.mapFile})
+        cosmic_n=$(wc -l < $cosmic)
+        mine_n=$(wc -l < {input})
+        depth_n=$(zcat {params.depth_bed} | wc -l)
+        
+        rm $cosmic
+        
+        echo -e "{wildcards.sample}\\t$intersect\\t$mine_n\\t$cosmic_n\\t$depth_n" > {output.countFile}
+        '''
+        
+rule get_cosmic_mutations_randomized_maps:
+    """
+    Randomizes the maps obtained based on the total number of bases covered
+    """
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}', '{sample}.txt')
+    params:
+        cosmic_bed = os.path.join(config["auxiliaryFiles"]["dir"], "cosmic_v85_CosmicMutantExport_simple_watson.bed"),
+        depth_bed = os.path.join(config["scratchDir"], "depth_bam", "{tissue}", "{sample}.bed.gzip"),
+        fasta = os.path.join(config["auxiliaryFiles"]["dir"], "genome", "GRCh37.p13.genome.encode.fa"),
+        genome_bedtools = os.path.join(config["auxiliaryFiles"]["dir"], "genome", "GRCh37.p13.genome.encode.genomeFile.bedtools"),
+        sample = "{sample}",
+        temp_dir = os.path.join(config["projectDir"], config["tempDir"])
+    output:
+        countFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count_randomized', '{tissue}', '{maf}', '{sample}.txt'),
+        mapFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map_randomized', '{tissue}', '{maf}', '{sample}.txt')
+    shell:
+        '''
+        
+        #######
+        # Randomizing map
+        # 
+        # Append sequence
+        ml bedtools/2.28.0
+        
+        # only work with a small subset of data
+        map_size=$(cat {input} | wc -l)
+        let map_size=$map_size*10
+        zgrep chr {params.depth_bed} | shuf -n $map_size | sort -k1,1 -k2,2n > {params.temp_dir}/{params.sample}.depth
+        
+        
+        bedtools shift -i {params.temp_dir}/{params.sample}.depth -g {params.genome_bedtools} -s -1 | bedtools getfasta -fi {params.fasta} -bed stdin -bedOut | bedtools shift -i stdin -g {params.genome_bedtools} -s +1 > {params.temp_dir}/{params.sample}.depth_seq 
+        
+        # Randomize on a per-reference basis
+        for i in A T G C
+        do
+            n_base=$(grep -P "chr\d+\\t\d+\\t$i\\t" {input} | wc -l)
+            paste <(grep "$i$" {params.temp_dir}/{params.sample}.depth_seq | shuf -n $n_base | cut -f1,2) <(grep -P "chr\d+\\t\d+\\t$i\\t" {input} | cut -f3-)
+        done | sort -k1,1 -k2,2n > {params.temp_dir}/{params.sample}_randomized.txt
+        
+        #############
+        ## Doing overlaps
+        cosmic={config[scratchDir]}/{config[tempDir]}/{wildcards.sample}_{wildcards.maf}.cosmic.bed
+        
+        # Get cosmic mutations that were covered by sequencing
+        bedtools intersect -sorted -a {params.cosmic_bed} -b {params.depth_bed} -g {params.genome_bedtools} > $cosmic
+        
+        # Get cosmic mutations overlap with mine
+        ../bin/mutationToBed {params.temp_dir}/{params.sample}_randomized.txt | bedtools intersect -sorted -wa -wb -a $cosmic -b stdin > {output.mapFile}
+        
+        intersect=$(awk -v OFS="\\t" -v FS="\\t" -v Match=0 -v notMatch=0 '{{if ($5 == $11) {{Match++}} else {{notMatch++}} }} END{{print Match "\\t" notMatch}}' {output.mapFile})
+        cosmic_n=$(wc -l < $cosmic)
+        mine_n=$(wc -l < {input})
+        depth_n=$(zcat {params.depth_bed} | wc -l)
+        
+        echo -e "{wildcards.sample}\\t$intersect\\t$mine_n\\t$cosmic_n\\t$depth_n" > {output.countFile}
+        
+        rm -f $cosmic {params.temp_dir}/{params.sample}.depth {params.temp_dir}/{params.sample}.depth_seq {params.temp_dir}/{params.sample}_randomized.txt
+        '''
+        
+#rule get_cosmic_mutations_randomized_maps:
+#    """
+#    Randomizes the maps obtained from previous rule
+#    """
+#    input:
+#        countFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count', '{tissue}', '{maf}', '{sample}.txt'),
+#        mapFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map', '{tissue}', '{maf}', '{sample}.txt')
+#    output:
+#        countFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count_randomized', '{tissue}', '{maf}', '{sample}.txt'),
+#        mapFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map_randomized', '{tissue}', '{maf}', '{sample}.txt')
+#    shell:
+#        '''
+#        ml R/3.4.0
+#        
+#        cd R/cancer/
+#        
+#        Rscript randomize_cancer_map_overlap.R {input.mapFile} {output.mapFile}
+#        
+#        intersect=$(awk -v OFS="\\t" -v FS="\\t" -v Match=0 -v notMatch=0 '{{if ($5 == $11) {{Match++}} else {{notMatch++}} }} END{{print Match "\\t" notMatch}}' {output.mapFile})
+#        
+#        paste <(echo -e "{wildcards.sample}\\t$intersect\\t") <(cut -f 4- {input.countFile}) > {output.countFile}
+#        '''
+        
+# All overlaps
+#rule get_cosmic_mutations:
+#    """
+#    For each sample print 5 columns: 
+#        sample id, 
+#        number of mutations that agree,
+#        number of mutations that don't agree,
+#        total number of mutations in sample,
+#        total number of mutation in cosmic.
+#    """
+#    input:
+#        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', '{maf}', '{sample}.txt')
+#    params:
+#        cosmic_bed = os.path.join(config["auxiliaryFiles"]["dir"], "cosmic_v85_CosmicMutantExport_simple_watson.bed"),
+#        depth_bed = os.path.join(config["scratchDir"], "depth_bam", "{tissue}", "{sample}.bed.gzip"),
+#        genome_bedtools = os.path.join(config["auxiliaryFiles"]["dir"], "genome", "GRCh37.p13.genome.encode.genomeFile.bedtools")
+#    output:
+#        countFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count', '{tissue}', '{maf}', '{sample}.txt'),
+#        mapFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map', '{tissue}', '{maf}', '{sample}.txt')
+#    shell:
+#        '''
+#        cosmic={params.cosmic_bed}
+#        
+#        # Get cosmic mutations overlap with mine
+#        ../bin/mutationToBed {input} | bedtools intersect -sorted -wa -wb -a $cosmic -b stdin > {output.mapFile}
+#        
+#        intersect=$(awk -v OFS="\\t" -v FS="\\t" -v Match=0 -v notMatch=0 '{{if ($5 == $11) {{Match++}} else {{notMatch++}} }} END{{print Match "\\t" notMatch}}' {output.mapFile})
+#        cosmic_n=$(wc -l < $cosmic)
+#        mine_n=$(wc -l < {input})
+#        
+#        echo -e "{wildcards.sample}\\t$intersect\\t$mine_n\\t$cosmic_n" > {output.countFile}
+#        '''
+    
+rule get_cosmic_mutations_plot:
+    input:
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count', '{tissue_2}', '{maf_2}', '{sample_2}.txt'), zip, sample_2 = SAMPLES, tissue_2 = TISSUES_ALL, maf_2 = MAF_ALL)
+    params:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count'),
+        "{maf}"
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'percentage_overlap_all_tissues.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'percentage_overlap_all_tissues_wrongMut.pdf')
+    shell:
+        '''
+        ml R/3.4.0
+        cd R/cancer/
+        Rscript cosmic_mutations_plot.R {params} {output}
+        '''
+        
+rule get_cosmic_mutations_randomized_plot:
+    input:
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count_randomized', '{tissue_2}', '{maf_2}', '{sample_2}.txt'), zip, sample_2 = SAMPLES, tissue_2 = TISSUES_ALL, maf_2 = MAF_ALL)
+    params:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'count_randomized'),
+        "{maf}"
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'randomized_percentage_overlap_all_tissues.pdf'),
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'randomized_percentage_overlap_all_tissues_wrongMut.pdf')
+    shell:
+        '''
+        ml R/3.4.0
+        cd R/cancer/
+        Rscript cosmic_mutations_plot.R {params} {output}
+        '''
+        
+rule get_All_mutations_VAF_plot:
+    input:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'dndsout_tissuesMerged_all', '1_all_mutations_annotated_dnds.txt.gz')
+    params:
+        unique_mutations = "FALSE",
+        last_exon = "{last_exon}",
+        out_prefix = os.path.join(config["projectDir"], config["cancer"]["root"], 'VAF_missense_nonsense', '{maf}', 'last_exon_{last_exon}_')
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'VAF_missense_nonsense', '{maf}', 'last_exon_{last_exon}_All.pdf')
+    shell:
+        '''
+        ml R/3.4.0
+        cd R/cancer/
+        Rscript plot_VAF_different_mutation_impacts.R {params} {input}
+        '''
+        
+rule get_cosmic_mutations_VAF_plot:
+    input:
+        expand(os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map', '{tissue_2}', '{maf_2}', '{sample_2}.txt'), zip, sample_2 = SAMPLES, tissue_2 = TISSUES_ALL, maf_2 = MAF_ALL)
+    params:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map'),
+        "{maf}"
+    output:
+        os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'vaf_comparison.pdf')
+    shell:
+        '''
+        ml R/3.4.0
+        cd R/cancer/
+        Rscript cosmic_vaf_comparisons.R {params} {output}
+        '''

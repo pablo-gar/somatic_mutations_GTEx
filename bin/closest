@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Does bedtools closest between a mutation file and a bed file
+# Intended to find closes exon boundary for all mutations in a mutation file
+
+set -euo pipefail
+
+if [ $# -ne 2 ]; then
+    echo $0: usage: closest mutationFile.txt exonBoundaryFile.bed
+    exit 1
+fi
+
+bedtools closest -a <(paste <(cut -f1-2 $1) <(cut -f2- $1) | sort -k1,1 -k2,2n) -b $2 -d -t first | perl -pe 's/.+\t(\w+)/\1/'
+
+exit $?

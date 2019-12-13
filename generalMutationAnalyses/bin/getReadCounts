@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+mappingDir=$1
+
+echo -e 'sample\ttissue\tn_reads\tn_uniqueMapped\tn_multpleLoci\tn_tooManyLoci'
+for tissue in $mappingDir/*
+do
+    for sample in $tissue/*Log.final.out
+    do
+        paste -d "" <(echo "$sample" | perl -pe 's/.+\/+(.+)_Log.+/\1/') \
+                    <(echo "$tissue" | perl -pe 's/.+\/+(.+)/\t\1/') \
+                    <(grep -e "Number of input reads" \
+                           -e "Uniquely mapped reads number" \
+                           -e "Number of reads mapped to multiple loci" \
+                           -e "Number of reads mapped to too many loci" $sample | \
+                      perl -pe 's/\s+//g;s/[[:alpha:]]+//g;s/\|/\t/')
+    done
+done
+
+exit 0

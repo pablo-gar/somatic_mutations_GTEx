@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# Gets state of slurm job given its id as an argument
+
+job=$1
+
+running=( CONFIGURING PENDING RUNNING RESIZING SUSPENDED PREEMPTED COMPLETING )
+failed=( BOOT_FAIL CANCELLED DEADLINE FAILED NODE_FAIL TIMEOUT OUT_OF_MEMORY )
+completed=COMPLETED
+
+failedLabel=failed
+runningLabel=running
+completedLabel=success
+dateS=$(date -d "-10 days" +'%Y-%m-%d')
+
+
+# Gets state of job
+let timeMultiplier=4
+let sleepTime=1
+while true
+do
+    sacctOut=`sacct -n -j $1 --format "JobID,State" -P -S $dateS`
+    if [ "$?" == "0" ]
+    then
+        break
+    fi
+    
+    sleep $sleepTime
+    let sleepTime=$sleepTime*$timeMultiplier
+    
+    if [ "$sleepTime" -gt "120" ]
+    then
+        sleepTime=120
+    fi
+done
+
+state=`echo "$sacctOut" | grep -v .extern | cut -f2 -d "|"` # Ignores extern process from SLURM
+
+
+
+#Checking if completed
+nlinesCompleted="$(echo "$state" | perl -ne "if (\$_ =~ /$completed/) {print}" | wc -l)"
+nlines="$(echo "$state" | wc -l)"
+
+if [ "$nlinesCompleted" == "$nlines" ]
+then
+    echo "$completedLabel"
+    exit 0
+fi
+
+
+# Checking if running
+for i in ${running[@]}
+do
+    
+    # If running in anyway the number of lines will not be 0
+    nlines="$(echo "$state" | perl -ne "if (\$_ =~ /$i/) {print}" | wc -l)"
+    
+    if [ "$nlines" != "0" ] 
+    then
+        echo "$runningLabel"
+        exit 0
+    fi
+done
+
+
+# Checking if failed
+for i in ${failed[@]}
+do
+    
+    # If failed in anyway the number of lines will not be 0
+    nlines="$(echo "$state" | perl -ne "if (\$_ =~ /$i/) {print}" | wc -l)"
+    
+    if [ "$nlines" != "0" ] 
+    then
+        echo "$failedLabel"
+        exit 0
+    fi
+done
+
+
+echo "$runningLabel"
+exit 0
+

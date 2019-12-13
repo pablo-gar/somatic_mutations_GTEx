@@ -1,0 +1,574 @@
+# Run line
+# snakemake --cluster-config cluster.json --cluster-status jobState --jobs 1900 --cluster "sbatch --parsable --partition={cluster.partition} --time={cluster.time} --cpus-per-task={cluster.cpus} --mem={cluster.mem} --job-name={cluster.jobname} --output={cluster.output} --error={cluster.error}"
+# DAG
+# snakemake --dag  | dot -Tsvg > dag.svg
+# snakemake --dag  | dot -Tpng > dag.png
+
+
+import os
+
+##--------------------------------------------------##
+## GLOBAL
+
+configfile: "../config.json"
+
+# Sample ids
+TISSUES, MAF, SAMPLES, = glob_wildcards(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue,\w+}', '{maf, \w+.*}', '{sample,\w+}.txt'))
+TISSUES = set(TISSUES)
+TISSUES.remove("Whole_Blood_EXO")
+MAF = set(MAF)
+TISSUES_IMMUNE = ["Spleen", "Lung", "Whole_Blood"]
+#MAF = "n6_0.0_0.5"
+#MAF = config["MAF_toWorkOn"]
+
+
+# Get samples with depth
+TISSUES_D, SAMPLES_D, = glob_wildcards(os.path.join(config["projectDir"], "depth_bam", '{tissue,\w+}', '{sample,\w+}.bed.gzip'))
+SAMPLES_D = [SAMPLES_D[i] for i in range(len(TISSUES_D)) if "Blood" in TISSUES_D[i] or "Trans" in TISSUES_D[i]]
+TISSUES_D = [k for k in TISSUES_D if "Blood" in k or "Trans" in k]
+#SAMPLES_D = SAMPLES_D[1:3]
+#TISSUES_D = TISSUES_D[1:3]
+
+contexts_try = ["1"]
+strands_try = ["+", "-"]
+
+TISSUES_DEPTH = []
+SAMPLES_DEPTH = []
+contexts = []
+strands = []
+
+for i_tis in range(len(TISSUES_D)):
+    for i_con in range(len(contexts_try)):
+        for i_strand in range(len(strands_try)):
+            TISSUES_DEPTH.append(TISSUES_D[i_tis])
+            SAMPLES_DEPTH.append(SAMPLES_D[i_tis])
+            contexts.append(contexts_try[i_con])
+            strands.append(strands_try[i_strand])
+            
+
+TISSUES_DEPTH_NOEXO = set(TISSUES_DEPTH)
+if "Whole_Blood_EXO" in TISSUES_DEPTH_NOEXO:
+    TISSUES_DEPTH_NOEXO.remove("Whole_Blood_EXO")
+TISSUES_DEPTH_NOEXO = list(TISSUES_DEPTH_NOEXO)
+
+
+##--------------------------------------------------##
+
+
+##--------------------------------------------------##
+## PIPELINE
+
+rule all:
+    input: 
+        ## Plot dnds global
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsGlobPlots"], "{maf}", "dnds_dotPlot_wall_expression_AllExpressed_facet_maf.pdf"), maf = MAF),
+        ### Plot average and std strand differences accros all tissues
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_compiled", "{maf}_avg_heatmap.pdf"), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_compiled", "{maf}_avg_box.pdf"), maf = MAF),
+        #
+        ### Plot mutation type strand differences
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.normalized.pdf"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.raw.pdf"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.box.normalized.pdf"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.box.raw.pdf"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.box2.raw.pdf"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.raw_strand_mut_avg.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.age_cor_fc_strand.txt"), maf = MAF, tissue = TISSUES),
+        #
+        ## Get context counts
+        #os.path.join(config["projectDir"], config["tempDir"], "done_count_contexts")
+        #
+        ### Plot rna edit enrichments
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_coding_non_coding_boxplots.pdf"),  maf = MAF, tissue = TISSUES_DEPTH_NOEXO),
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_counts.pdf"),  maf = MAF, tissue = TISSUES_DEPTH_NOEXO),
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_percentage.pdf"),  maf = MAF, tissue = TISSUES_DEPTH_NOEXO),
+        ### Plot rna edit exo
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_coding_non_coding_boxplots.pdf"),  maf = MAF, tissue = "Whole_Blood_EXO"),
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_counts.pdf"),  maf = MAF, tissue = "Whole_Blood_EXO"),
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_percentage.pdf"),  maf = MAF, tissue = "Whole_Blood_EXO")
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_all_bar_counts.pdf"), maf = MAF, tissue = TISSUES),
+        #
+        ### Plot pairwise tissue comparisons
+        #os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Artery_Tibial.Nerve_Tibial_C>T.pdf"),
+        #os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Lung.Whole_Blood_C>T.pdf"),
+        ##
+        ### Get strand bias files
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_topGenes_GO", "{maf}", "{tissue}", "allDone.txt"), maf = MAF, tissue = TISSUES),
+        #### Get GO enrichment of most strand biased genes
+        ##expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.per_gene_fc_strand.txt"), maf = MAF, tissue = TISSUES),
+        ###
+        ### Do GWAS of strand differences
+        ##expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "GWAS", '{tissue}-{maf}.txt'), maf = MAF, tissue = TISSUES),
+        ### Get associations between gene expression and strand differences
+        #expand(os.path.join(config["projectDir"],  config["generalMutationAnalyses"]["root"], 'strand_fc', 'expression_association', '{tissue}', '{maf}-significant.txt'), maf = MAF, tissue = TISSUES),
+        ### Plot all tissue strand differences heatmap and create tables for GWAS
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], 'strand_differences_pairwise_comparisons', '{maf}', '1_strand_bias_cor_heatmap_all_tissues_C_A.pdf'), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], 'strand_differences_pairwise_comparisons', '{maf}', '1_cor_results.txt'), maf = MAF),
+        #
+        # Get correlations between cell types in blood samples and their strand biases
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-scatter_strand_bias_cell_types_C_T.pdf"), maf = MAF, tissue = TISSUES_IMMUNE),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-heatmap_strand_bias_cell_types.pdf"), maf = MAF, tissue = TISSUES_IMMUNE),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-correlation_table_strand_bias_cell_types.txt"), maf = MAF, tissue = TISSUES_IMMUNE),
+        #
+        # Get correlations between cell types in lung samples and their strand biases
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "lung_cell_types", "{maf}-C_T_strand_asymmetry_cors.txt"), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands.txt'), maf = MAF, tissue = TISSUES),
+        #
+        # Do associations between mutation signatures and strand biases using cors
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor", '{tissue}', '{maf}', "1_stats.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf"), maf = MAF, tissue = TISSUES),
+        ## 
+        ## Do associations between mutation load and strand biases
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationLoad_associations", '{tissue}', '{maf}', "1_stats.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationLoad_associations", '{tissue}', '{maf}', "mut_type_C_A_scatter.pdf"), maf = MAF, tissue = TISSUES),
+        ## 
+        ## Do associations between mutation load (percentage of mutations) and strand biases
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor_totalMuts", '{tissue}', '{maf}', "1_stats.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor_totalMuts", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf"), maf = MAF, tissue = TISSUES),
+        ## 
+        ## Do associations between mutations signatures and strand biases nnls
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_nnls", '{tissue}', '{maf}', "1_stats.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_nnls", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf"), maf = MAF, tissue = TISSUES),
+        ## 
+        ## Do associations between kucab mutations signatures and strand biases nnls
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_kucab_associations_cor", '{tissue}', '{maf}', "1_stats.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_kucab_associations_cor", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf"), maf = MAF, tissue = TISSUES)
+        # Get dnds all mutations
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_sel_cv.txt"), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_sel_loc.txt"), maf = MAF),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_globalInds.txt"), maf = MAF)
+        ## Annotate mut table
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout_annotatedTables"], "{tissue}-{maf}.annotatedMutTable.txt"),  maf = MAF, tissue = TISSUES),
+        ##Run dndscv
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_sel_cv.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_sel_loc.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_globalInds.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesSynonymousMutations.txt"), maf = MAF, tissue = TISSUES),
+        #expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"), maf = MAF, tissue = TISSUES)
+
+rule run_dndscv:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{maf}")
+        
+    params:
+        mafBins = "4",
+        minAverageExpression = "1",
+        quantileExpression = "0.8",
+        outprefix = lambda wildcards: os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], wildcards.tissue, wildcards.maf, "dndsout_")
+        
+
+    output:
+        # It will also output different expression bins and MAFs (based on parameters). But I'm not explicitely declaring them here
+        # because MAF values can change based on MAF bins
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_sel_cv.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_sel_loc.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_globalInds.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesSynonymousMutations.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt")
+
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript dndsInMutationMaps.R {params} {input}/*
+        cd ../
+        '''
+        
+rule plot_globalDndscv:
+    input:
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{{maf}}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_globalInds.txt"), tissue = TISSUES)
+    params:
+        dndsoutDir = os.path.join(config["projectDir"], config["selectionDir"]["dndsout"]),
+        maf = lambda wildcards: wildcards.maf,
+        outPrefix = lambda wildcards: os.path.join(config["projectDir"], config["selectionDir"]["dndsGlobPlots"], wildcards.maf, "dnds_")
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsGlobPlots"], "{maf}", "dnds_dotPlot_wall_expression_AllExpressed_facet_maf.pdf")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript plot_dndsGlobal.R {params.dndsoutDir} {params.maf} {params.outPrefix}
+        '''
+        
+        
+        
+rule annotate_dndsTables:
+    input:
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_sel_cv.txt"),
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout_annotatedTables"], "{tissue}-{maf}.annotatedMutTable.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript annotate_dnds_table.R {input} {output}
+        '''
+        
+rule plot_stranDifferences:
+    input:
+        os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.normalized.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.raw.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.box.normalized.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.box.raw.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.box2.raw.pdf"), 
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.raw_strand_mut_avg.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.age_cor_fc_strand.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.per_gene_fc_strand.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript plot_strandDifferences.R {input} {output}
+        '''
+        
+rule all_strand_context_counts:
+    input:
+        ancient(expand(os.path.join(config["projectDir"], "context_counts", "{context_length}_nucleotides", "{tissue}", "strand_{strand}", "{sample}.txt"), zip, context_length = contexts, strand = strands, tissue = TISSUES_DEPTH, sample = SAMPLES_DEPTH))
+    output:
+        temp(os.path.join(config["projectDir"], config["tempDir"], "done_count_contexts"))
+    shell:
+        '''
+        echo done > {output}
+        '''
+
+rule get_stranded_context_counts:
+    input:
+        depth_bam = os.path.join(config["projectDir"], "depth_bam", "{tissue}", "{sample}.bed.gzip"),
+        genome_bedtools = os.path.join(config["auxiliaryFiles"]["genomeFolder"], "GRCh37.p13.genome.encode.genomeFile.bedtools"),
+        genome_fasta =  os.path.join(config["auxiliaryFiles"]["genomeFolder"], "GRCh37.p13.genome.encode.fa"),
+        exon_bed =  os.path.join(config["auxiliaryFiles"]["dir"], "gencode.v19.genes.v7.patched_contigs.onlyExons.bed")
+    params:
+        sample = "{sample}",
+        context_length = "{context_length}",
+        strand = "{strand}",
+        temp_dir =  os.path.join(config["projectDir"] ,config["tempDir"])
+    output:
+        os.path.join(config["projectDir"], "context_counts", "{context_length}_nucleotides", "{tissue}", "strand_{strand}", "{sample}.txt")
+    shell:
+        '''
+        grep $'\\t{params.strand}\\t' {input.exon_bed} | \
+           bedtools intersect -f 1 -wa -wb -a {input.depth_bam} -b stdin | \
+           bedtools shift -s -1 -i stdin -g {input.genome_bedtools} | \
+           bedtools slop -b {params.context_length} -g {input.genome_bedtools} -i stdin | \
+           bedtools getfasta -fi {input.genome_fasta} -bed stdin -fo {params.temp_dir}/{params.sample}_{params.context_length}_{params.strand}_counts.txt
+           
+        grep -v ">" {params.temp_dir}/{params.sample}_{params.context_length}_{params.strand}_counts.txt | \
+           sort | uniq -c | \
+           perl -pe 's/.+?(\d+).+?(\w+)/\\2\\t\\1/' > {output} && \
+           rm {params.temp_dir}/{params.sample}_{params.context_length}_{params.strand}_counts.txt
+        
+        '''
+        
+rule plot_RNA_edit_enrichment:
+    input:
+        mutation_file = os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+        done_context = os.path.join(config["projectDir"], config["tempDir"], "done_count_contexts")
+    params:
+        mutation = "A\>G",
+        original_profile = "FALSE",
+        out_prefix = os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A\>G_"),
+        context_counts_dir = os.path.join(config["projectDir"], "context_counts", "1_nucleotides", "{tissue}/")
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_coding_non_coding_boxplots.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_counts.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_percentage.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_all_bar_counts.pdf")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript get_RNA_edit_enrichment.R {params} {input.mutation_file}
+        '''
+        
+rule plot_RNA_edit_exo:
+    input:
+        mutation_file = os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_EXO", "{tissue}", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+        mutation_file_rna =  os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "Whole_Blood", "{maf}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+        done_context = os.path.join(config["projectDir"], config["tempDir"], "done_count_contexts")
+    params:
+        mutation = "A\>G",
+        original_profile = "FALSE",
+        out_prefix = os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A\>G_"),
+        context_counts_dir = os.path.join(config["projectDir"], "context_counts", "1_nucleotides", "{tissue}/")
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_coding_non_coding_boxplots.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_counts.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_coding_non_coding_bar_percentage.pdf"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_all_bar_counts.pdf")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript get_RNA_edit_enrichment.R {params} {input.mutation_file} {input.mutation_file_rna}
+        '''
+        
+rule do_GO_top_genes_strand_bias:
+    input:
+        os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.per_gene_fc_strand.txt")
+    params:
+        out_prefix = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_topGenes_GO", "{maf}", "{tissue}")
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_topGenes_GO", "{maf}", "{tissue}", "allDone.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R
+        Rscript GO_top_fc.R {params}/ {input}
+        '''
+
+rule plot_strandDifferences_compiled:
+    input:
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{{maf}}.raw_strand_mut_avg.txt"), tissue = TISSUES)
+    params:
+        out_prefix = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_compiled", "{maf}_")
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_compiled", "{maf}_avg_heatmap.pdf"), 
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_compiled", "{maf}_avg_box.pdf")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R
+        Rscript plot_strandDifferences_variance_heatmap.R {params} {input}
+        '''
+        
+rule plot_fc_strand_cors_gwas_tables:
+    input:
+        config["auxiliaryFiles"]["readCountTable"],
+        os.path.join(config["auxiliaryFiles"]["dir"], "transcriptome_shannon_diversity.txt"), 
+        expand(os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "{tissue}", "{{maf}}", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"), tissue = TISSUES)
+    params:
+        out_prefix = os.path.join(config["projectDir"], config["selectionDir"]["root"], 'strand_differences_pairwise_comparisons', '{maf}/'),
+        out_gwas_tables = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}/')
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], 'strand_differences_pairwise_comparisons', '{maf}', '1_strand_bias_cor_heatmap_all_tissues_C_A.pdf'),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], 'strand_differences_pairwise_comparisons', '{maf}', '1_cor_results.txt'),
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{{maf}}', '{tissue}-fcSrands.txt'), tissue = TISSUES),
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{{maf}}', '{tissue}-fcSrands_allInds_noMetadata.txt'), tissue = TISSUES)
+    shell:
+        '''
+        module load R/3.4.0
+        cd R
+        Rscript plot_strandDifferences_multiple_tissues.R {params} {input}
+        '''
+        
+rule plot_fc_strand_two_tissues:
+    input:
+        artery = os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "Artery_Tibial", "n6_0.0_0.7", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+        nerve = os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "Nerve_Tibial", "n6_0.0_0.7", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+        lung = os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "Lung", "n6_0.0_0.7", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt"),
+        blood = os.path.join(config["projectDir"], config["selectionDir"]["dndsout"], "Whole_Blood", "n6_0.0_0.7", "dndsout_,geneExpression:AllExpressed,selectionMaf:0%_100%,_genesAllMutations.txt")
+    params:
+        artery = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Artery_Tibial.Nerve_Tibial"),
+        blood = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Lung.Whole_Blood")
+    output:
+        artery = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Artery_Tibial.Nerve_Tibial_C>T.pdf"),
+        blood = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Lung.Whole_Blood_C>T.pdf")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R
+        Rscript plot_strandDifferences_2_tissues.R {params.artery} {input.artery} {input.nerve}
+        Rscript plot_strandDifferences_2_tissues.R {params.blood} {input.lung} {input.blood}
+        '''
+        
+rule run_dndscv_tissues_merged:
+    input:
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{{maf}}"), tissue = TISSUES)
+    params:
+        outprefix =  os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}/"),
+        input_maps = " ".join(expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], "{tissue}", "{{maf}}", "*.txt"), tissue = TISSUES))
+    output:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_sel_cv.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_sel_loc.txt"),
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_globalInds.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        cd R/
+        Rscript dndsInMutationMaps_simpleAllGenes.R {params}
+        cd ../
+        '''
+
+## RULES FOR ASSOCAITON ANALYSES between fc strand bias and expression or genotype
+rule mutation_association_expression:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands.txt')
+    params:
+        pval = 0.05
+    output:
+        os.path.join(config["projectDir"],  config["generalMutationAnalyses"]["root"], 'strand_fc', 'expression_association', '{tissue}', '{maf}-significant.txt'),
+        os.path.join(config["projectDir"],  config["generalMutationAnalyses"]["root"], 'strand_fc', 'expression_association', '{tissue}', '{maf}-nonSignificant.txt'),
+        os.path.join(config["projectDir"],  config["generalMutationAnalyses"]["root"], 'strand_fc', 'expression_association', '{tissue}', '{maf}-GO.txt')
+    shell:
+        """
+        module load R/3.4.0
+        cd ../generalMutationAnalyses/R
+        Rscript mutations_RNAexpression_association.R {params} {input} {output}
+        """
+        
+rule do_GWAS:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands.txt')
+    params:
+        permutations = 1000,
+        vcfFile = config["vcfFileCommon"]
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "GWAS", '{tissue}-{maf}.txt')
+    shell:
+        """
+        module load R/3.4.0
+        module load mariadb/10.2.11
+        cd ../generalMutationAnalyses/R
+        Rscript mutations_GWAS.R {input} {params} {output}
+        """
+
+rule blood_cell_type_fc_strand_cors:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands.txt'),
+        os.path.join(config["auxiliaryFiles"]["dir"], "cibersort", "CIBERSORT.Output_Abs_{tissue}_all_genes.txt")
+    params:
+        out_prefix = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}")
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-scatter_strand_bias_cell_types_C_T.pdf"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-heatmap_strand_bias_cell_types.pdf"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-correlation_table_strand_bias_cell_types.txt")
+    shell:
+        '''
+        ml R/3.4.0
+        cd R
+        Rscript blood_fc_correlation_cell_types.R {params} {input}
+        '''
+        
+rule lung_cell_type_fc_strand_cors:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', 'Lung-fcSrands.txt'),
+        os.path.join(config["auxiliaryFiles"]["dir"], "cibersort", "LM22.txt.ready")
+    params:
+        out_prefix = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "lung_cell_types", "{maf}-")
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "lung_cell_types", "{maf}-C_T_strand_asymmetry_cors.txt")
+    shell:
+        '''
+        ml R/3.4.0
+        cd R
+        Rscript lung_fc_correlation_neutrophils.R {params} {input}
+        '''
+        
+rule strand_fc_vs_mutationSignature_cors:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands_allInds_noMetadata.txt'),
+        os.path.join(config["projectDir"], config["mutationSignaturesDir"]["root"], 'reverse_cancer_signatures_cors', '{tissue}-{maf}_H_cancer_signatures.txt')
+    params:
+        outDir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor", '{tissue}', '{maf}/'),
+        percentage = "FALSE"
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor", '{tissue}', '{maf}', "1_stats.txt"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
+    shell:
+        """
+        module load R/3.4.0
+        cd R/
+        Rscript association_stand_fc_mutationSignatures.R {input} {params}
+        """
+        
+rule strand_fc_vs_mutationSignature_cors_kucab:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands_allInds_noMetadata.txt'),
+        os.path.join(config["projectDir"], config["mutationSignaturesDir"]["root"], 'reverse_cancer_signatures_kucab_cors', '{tissue}-{maf}_H_cancer_signatures.txt')
+    params:
+        outDir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_kucab_associations_cor", '{tissue}', '{maf}/'),
+        percentage = "FALSE"
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_kucab_associations_cor", '{tissue}', '{maf}', "1_stats.txt"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_kucab_associations_cor", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
+    shell:
+        """
+        module load R/3.4.0
+        cd R/
+        Rscript association_stand_fc_mutationSignatures.R {input} {params}
+        """
+        
+rule strand_fc_vs_mutationLoad_normalized:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'mutation_covariates', '{tissue}-{maf}.txt'),
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands_allInds_noMetadata.txt')
+    params:
+        outDir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationLoad_associations", '{tissue}', '{maf}/')
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationLoad_associations", '{tissue}', '{maf}', "1_stats.txt"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationLoad_associations", '{tissue}', '{maf}', "mut_type_C_A_scatter.pdf")
+    shell:
+        """
+        module load R/3.4.0
+        cd R/
+        Rscript association_mutationLoad_fc_strands.R {input} {params}
+        """
+        
+rule strand_fc_vs_mutationLoad_percentage:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands_allInds_noMetadata_total_mutations.txt'),
+        os.path.join(config["projectDir"], config["mutationSignaturesDir"]["root"], 'reverse_cancer_signatures_cors', '{tissue}-{maf}_H_cancer_signatures.txt')
+    params:
+        outDir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor_totalMuts", '{tissue}', '{maf}/'),
+        percentage = "TRUE"
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor_totalMuts", '{tissue}', '{maf}', "1_stats.txt"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor_totalMuts", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
+    shell:
+        """
+        module load R/3.4.0
+        cd R/
+        Rscript association_stand_fc_mutationSignatures.R {input} {params}
+        """
+        
+rule strand_fc_vs_mutationSignature_nnls:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{maf}', '{tissue}-fcSrands_allInds_noMetadata.txt'),
+        os.path.join(config["projectDir"], config["mutationSignaturesDir"]["root"], 'reverse_cancer_signatures', '{tissue}-{maf}_H_cancer_signatures.txt')
+    params:
+        outDir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_nnls", '{tissue}', '{maf}/'),
+        percentage = "FALSE"
+    output:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_nnls", '{tissue}', '{maf}', "1_stats.txt"),
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_nnls", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
+    shell:
+        """
+        module load R/3.4.0
+        cd R/
+        Rscript association_stand_fc_mutationSignatures.R {input} {params}
+        """
+    
+
+## HELPER RULES TO CREATE AUX FILES
+rule create_readCountTableCurrent:
+    output:
+        config["auxiliaryFiles"]["readCountTable"] + "_NEW"
+    params:
+        path = os.path.join(config["mappingDir"])
+    shell:
+        '''
+        bin/getReadCounts {params} > {output}
+        '''
+
+rule create_readCountTableCompiled:
+    input:
+        config["auxiliaryFiles"]["readCountTable"] + "_NEW"
+    output:
+        config["auxiliaryFiles"]["readCountTable"]
+    shell:
+        '''
+        cat {input} {output}_* | sort -k 1,1 -u > {output}
+        cp {output} {output}_OLD
+        '''
+
+rule create_readTranscriptomeDiversity:
+    output:
+        os.path.join(config["auxiliaryFiles"]["dir"], "transcriptome_shannon_diversity.txt")
+    shell:
+        '''
+        module load R/3.4.0
+        Rscript get_transcriptome_diversity.R {output} 
+        '''
+

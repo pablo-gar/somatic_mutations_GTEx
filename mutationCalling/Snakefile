@@ -1,0 +1,339 @@
+
+import os, re, sys
+from numpy import repeat
+
+
+##--------------------------------------------------##
+## GLOBAL
+
+localrules: all, check_call_mutations_eliminate_PoN, check_all_unique_mutations
+configfile: "../config.json"
+
+TISSUES, SAMPLES, = glob_wildcards(os.path.join(config["scratchDir"], config["pileupDir"], '{tissue,\w+}', '{sample,[a-zA-Z0-9]+}.txt'))
+
+TISSUES_n = len(set(TISSUES))
+TISSUES_NOEXO = set(TISSUES)
+if "Whole_Blood_EXO" in TISSUES_NOEXO:
+    TISSUES_NOEXO.remove("Whole_Blood_EXO")
+TISSUES_NOEXO = list(TISSUES_NOEXO)
+
+# number of reads supporting alt allele
+Nsup = [6]
+
+#########
+# Variant allele frequency range
+# 
+MAFall = [0.7]
+MAFallLower = [0.0]
+
+MAF_n = len(MAFall)
+
+
+##########
+# Repeat variant allele frequncy cutoff and n reads supporting variant allele for all samples
+MAFcutoff =  []
+MAFcutoffLower = []
+Nsup_final = []
+
+for i in range(len(TISSUES)): 
+    for j in range(Nsup_n):
+        MAFcutoff += MAFall
+        MAFcutoffLower += MAFallLower
+    for j in range(MAF_n):
+        Nsup_final += Nsup
+
+
+
+
+##--------------------------------------------------##
+
+
+##--------------------------------------------------##
+## PIPELINE
+
+rule all:
+    input: 
+        # Get maps with no repeated mutations
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'), zip, tissue=repeat(TISSUES, MAF_n * Nsup_n), sample = repeat(SAMPLES, MAF_n * Nsup_n), MAFLower = MAFcutoffLower, MAF = MAFcutoff, Nsup = Nsup_final)
+        
+    params:
+        count_dir = os.path.join(config["projectDir"], config["mutationCountDir"]["count"]),
+        maf = "n6_0.0_0.7",
+        linear_out_dir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "regressions_seq_depth/"),
+        purge_dir = os.path.join(config["projectDir"], config["mutationCountDir"]["root"]),
+        sample_table = config["auxiliaryFiles"]["sampleTable"],
+        purge_samples_out = os.path.join(config["projectDir"], "purgedSamples.txt"),
+        projectDir = config["projectDir"]
+        
+    shell:
+        '''
+        
+        # Creates sample table first
+        cd R
+        Rscript create_table_samples.R
+        to_purge=`Rscript linear_models_per_tissue.R {params.count_dir} {params.maf} {params.linear_out_dir} {params.sample_table}`
+        
+        # Eliminate samples to purge
+        cd {params.projectDir}
+        
+        for i in $to_purge
+        do
+            find ./pileups ./mutationCount -name "*$i*" -exec sh -c 'mkdir -p ./purge_dir/$(dirname {{}}); mv {{}} ./purge_dir/$(dirname {{}})' \;
+        done
+        '''
+        
+rule get_RNAeditSites:
+    output:
+        config["auxiliaryFiles"]["rnaEditSites"]
+    shell:
+        """
+        wget -O {output} http://lilab.stanford.edu/GokulR/database/Human_AG_all_hg19_v2.txt
+        """
+
+rule convert_RNAeditSitesToBED:
+    input:
+        config["auxiliaryFiles"]["rnaEditSites"]
+    output:
+         config["auxiliaryFiles"]["rnaEditSites"] + ".bed"
+    shell:
+        """
+        awk -v FS="\t" -v OFS="\t" 'NR!=1{print $1 "\t" $2 "\t" $2 + 1 "\t" $3 "\t.\t" $4}' {input} | bedtools sort -i stdin > {output}
+        """
+        
+rule get_RNAeditSites2:
+    output:
+        os.path.join(config["auxiliaryFiles"]["dir"], "hg19_darned.bed"),
+    shell:
+        '''
+        wget -O {output}.txt https://darned.ucc.ie/static/downloads/hg19.txt
+        tail -n +2  {output}.txt | awk -v FS="\t" -v OFS="\t" '{$1="chr" $1; $2=$2 "\t" $2 + 1; print $0}' | sort -k1,1 -k2,2n > {output}
+        rm {output}.txt
+        '''
+        
+rule call_mutations:
+    '''
+    This is the main rule that calls high quality mutations. It does the following main steps:
+    1. Obtains useful positions from a pileups, applying coverage, n_support, MAF cutoffs
+    2. Appends filters to postions: blacklisted regions, rna edits, sequencing errors, splicing errors, clustered mutations
+    3. Prints mutations that pass filters without filters
+    4. Create mutation type count matrix (2x4) and mutation count with context
+    '''
+    input:
+        map = os.path.join(config["scratchDir"], config["pileupDir"], '{tissue}', '{sample}.txt'),
+        rnaEditBed = config["auxiliaryFiles"]["rnaEditSites"] + ".bed",
+        rnaEditBed2 = os.path.join(config["auxiliaryFiles"]["dir"], "hg19_darned.bed"),
+        exonBoundariesBed = config["auxiliaryFiles"]["GTF_gtex_exonBoundaries"]
+    params:
+        tempDir = os.path.join(config["projectDir"], config["tempDir"]),
+        # 1. Pileup params
+        ignoreTriallelic = True,
+        nSupport = lambda wildcards: wildcards.Nsup,
+        coverage = config["coverageCutoff"],
+        MAFcutoffLower = lambda wildcards: wildcards.MAFLower,
+        MAFcutoff = lambda wildcards: wildcards.MAF,
+        MAFstring = lambda wildcards: 'n{Nsup}_{MAFLower}_{MAF}'.format(Nsup = wildcards.Nsup, MAFLower = wildcards.MAFLower, MAF = wildcards.MAF),
+       
+        
+        # 2. Filter params
+        blacklist_bed = os.path.join(config["auxiliaryFiles"]["dir"], "GRCh37.p13.genome.encode.blacklist.bed"),
+        blacklist_label = "blacklisted_region",
+        rnaEdit_label = "rna_edit",
+        rnaEdit_label2 = "rna_edit_darned",
+        sequencingError_probCutoff = "0.0001",
+        sequencingError_lowestQuality = config["seqQualityCutoff"],
+        sequencingError_label = "sequencing_error",
+        closeExonBoundary_distance = "7",
+        closeExonBoundary_label = "splicing_junction_error",
+        clusterMut_clusterSize = "100",
+        clusterMut_nMutations = "3",
+        clusterMut_label = "clustered_mutation",
+        bcf_errorLabel = "bcf",
+        vdb_cutoff = 0.05,
+        rpb_cutoff = 0.05,
+        mqb_cutoff = 0.05,
+        bqb_cutoff = 0.05,
+        mqsb_cutoff = 0.05,
+        
+        # 4. Count and context params
+        contextLength = 5
+        
+    output:
+        # From pileup
+        unfiltered_map = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'unfiltered', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        # Map with appended filters
+        filtered_map = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'filtered', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        # Map after removing mutations with bad filters
+        clean_map = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_no_PoN', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        clean_count = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'count_no_PoN', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        clean_context = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'context_no_PoN','{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt')
+        
+    shell:
+        '''
+        
+        #####################
+        # 1. Get positions from pileups
+        python3 python/printMutationMap_fromPileup.py {input.map} {params.ignoreTriallelic} {params.nSupport} {params.coverage} {params.MAFcutoffLower} {params.MAFcutoff} {output.unfiltered_map}
+        
+        
+        #####################
+        # 2. Append filters
+        
+        sampleAlias={wildcards.sample}-{params.MAFstring}
+        
+         
+        # Add filter of blacklisted regions
+        python3 python/filterAppend_distanceToBed.py {output.unfiltered_map} {params.blacklist_bed} 1 {params.blacklist_label} > {params.tempDir}/$sampleAlias.fitlerBlacklist
+        
+        # Append filter: RNA edits
+        python3 python/filterAppend_distanceToBed.py {params.tempDir}/$sampleAlias.fitlerBlacklist {input.rnaEditBed} 1 {params.rnaEdit_label} > {params.tempDir}/$sampleAlias.fitlerRnaEdit    
+        rm {params.tempDir}/$sampleAlias.fitlerBlacklist
+        
+        # Append filter: RNA edits 2
+        python3 python/filterAppend_distanceToBed.py {params.tempDir}/$sampleAlias.fitlerRnaEdit {input.rnaEditBed2} 1 {params.rnaEdit_label2} > {params.tempDir}/$sampleAlias.fitlerRnaEdit2
+        rm {params.tempDir}/$sampleAlias.fitlerRnaEdit
+        
+        # Append filter: splicing junction errors
+        python3 python/filterAppend_distanceToBed.py {params.tempDir}/$sampleAlias.fitlerRnaEdit2 {input.exonBoundariesBed} {params.closeExonBoundary_distance} {params.closeExonBoundary_label} > {params.tempDir}/$sampleAlias.fitlerExonBoundary
+        rm {params.tempDir}/$sampleAlias.fitlerRnaEdit2
+        
+        # Append filer: sequencing error
+        python3 python/filterAppend_sequenceError.py {params.tempDir}/$sampleAlias.fitlerExonBoundary {params.sequencingError_probCutoff} {params.sequencingError_lowestQuality} {params.sequencingError_label} > {params.tempDir}/$sampleAlias.fitlerSeqError
+        
+        rm {params.tempDir}/$sampleAlias.fitlerExonBoundary
+        
+        # Append filter: clustered mutations
+        python3 python/filterAppend_clusterMutations.py {params.tempDir}/$sampleAlias.fitlerSeqError {params.clusterMut_clusterSize} {params.clusterMut_nMutations} {params.clusterMut_label} >  {params.tempDir}/$sampleAlias.clustered 
+        
+        rm {params.tempDir}/$sampleAlias.fitlerSeqError
+        
+        # Append filter: bcf stats
+        # only if the exist in the original pileup file
+         
+        nCols=`awk '{{print NF; exit}}' {input.map}`
+        if [ "$nCols" -gt "10" ]
+        then
+            python3 python/filterAppend_statFromBCF.py {params.tempDir}/$sampleAlias.clustered {input.map} {params.bcf_errorLabel} {params.vdb_cutoff} {params.rpb_cutoff} {params.mqb_cutoff} {params.bqb_cutoff} {params.mqsb_cutoff} > {output.filtered_map}
+            rm {params.tempDir}/$sampleAlias.clustered
+        else
+            mv {params.tempDir}/$sampleAlias.clustered {output.filtered_map}
+        fi
+        
+        
+        #####################
+        # 3. Clean mutations, i.e. print ones without filters
+      
+        # Includes cluster mutations and variant distance bias
+        #awk -v FS="\\t" -v OFS="\\t" '{{if ($8 == "PASS" || $8 == "clustered_mutation" || $8 == "clustered_mutation;bcf_variant_distance_bias" || $8 == "bcf_variant_distance_bias") print $0}}' {output.filtered_map} | cut -f-7 > {output.clean_map}
+        
+        # Includes cluster mutations but NOT variant distance bias
+        awk -v FS="\\t" -v OFS="\\t" '{{if ($8 == "PASS" || $8 == "clustered_mutation") print $0}}' {output.filtered_map} | cut -f-7 > {output.clean_map}
+         
+        #####################
+        # 4. Creat context and counts
+        Rscript R/printCountsContext_fromMap.R {params.contextLength} {output.clean_map} {output.clean_count} {output.clean_context}
+        
+        '''
+       
+rule all_mutation_maps_no_PoN:
+    input:
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_no_PoN', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'), zip, tissue=repeat(TISSUES, MAF_n * Nsup_n), sample = repeat(SAMPLES, MAF_n * Nsup_n), MAFLower = MAFcutoffLower, MAF = MAFcutoff, Nsup = Nsup_final)
+    params:
+        count_dir = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'count_no_PoN'),
+        purge_dir = os.path.join(config["projectDir"], config["mutationCountDir"]["root"]),
+        purge_samples_out = os.path.join(config["projectDir"], "purgedSamples.txt")
+    output:
+        temp(os.path.join(config["projectDir"], config["tempDir"], "done_map_no_PoN.txt"))
+    shell:
+        '''
+        echo DONE > {output}
+        '''
+
+rule get_mutationType_popFreq:
+    input:
+        temp(os.path.join(config["projectDir"], config["tempDir"], "done_map_no_PoN.txt"))
+    params:
+        clean_map_no_PoN_dir = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_no_PoN', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}')
+    output:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'pop_freq', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}.txt')
+    shell:
+        """
+        ../generalMutationAnalyses/bin/print_mut_freq {params}/* > {output}
+        """
+        
+rule get_panel_of_normals:
+    input:
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'pop_freq', '{tissue}', 'n{{Nsup}}_{{MAFLower}}_{{MAF}}.txt'), tissue = TISSUES_NOEXO)
+    params:
+        vaf_pop_cutoff = 0.4
+    output:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'panel_of_normal_mutations', 'n{Nsup}_{MAFLower}_{MAF}.txt')
+    shell:
+       '''
+       #tissue=$(basename $(dirname {input}))
+       #cat {input} | awk -v FS="\\t" -v OFS="\\t" '{{if($1 >= {params.vaf_pop_cutoff}) {{print $2 "\\t" $3 "\\t" $3+1 "\\t" $4 "\\t" $5 "\\t" $1}} }}' > {output}
+       cat {input} | awk -v FS="\\t" -v OFS="\\t" '{{if($1 >= {params.vaf_pop_cutoff}) {{print $2 "\\t" $3 "\\t" $3+1 "\\t" $4 "\\t" $5}} }}' | sort -k1,1 -k2,2n | uniq > {output}
+       '''
+        
+rule call_mutations_eliminate_PoN:
+    input:
+        map_no_Pon = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_no_PoN', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        PoN = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'panel_of_normal_mutations', 'n{Nsup}_{MAFLower}_{MAF}.txt')
+    params:
+        contextLength = 5
+    output:
+        #out_map = os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        #out_count = os.path.join(config["projectDir"], config["mutationCountDir"]["count"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        #out_context = os.path.join(config["projectDir"], config["mutationCountDir"]["context"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt')
+        out_map = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_with_repeated', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt')
+    shell:
+        '''
+        ../bin/mutationToBed {input.map_no_Pon} | bedtools intersect -v -a stdin -b {input.PoN} | cut -f 3 --complement > {output.out_map}
+        '''
+        
+rule check_call_mutations_eliminate_PoN:
+    input:
+        expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_with_repeated', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'), zip, tissue=repeat(TISSUES, MAF_n * Nsup_n), sample = repeat(SAMPLES, MAF_n * Nsup_n), MAFLower = MAFcutoffLower, MAF = MAFcutoff, Nsup = Nsup_final)
+    output:
+        temp(os.path.join(config["projectDir"], config["tempDir"], "done_map_after_pon.txt"))
+    shell:
+        '''
+        echo DONE > {output}
+        '''
+
+        
+rule get_mutationType_popFreq_all:
+    input:
+        os.path.join(config["projectDir"], config["tempDir"], "done_map_after_pon.txt")
+    params:
+        " ".join(expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_with_repeated', '{tissue}', 'n{{Nsup}}_{{MAFLower}}_{{MAF}}/*'), tissue = TISSUES_NOEXO))
+    output:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'all_mutations_frequency', 'n{Nsup}_{MAFLower}_{MAF}', 'mutation_freq_table.txt')
+    shell:
+        """
+        bin/print_mut_freq2 {params} | sort -k4,4 -k5,5n > {output}
+        """
+
+rule get_maps_corrected_context_and_no_repeated:
+    '''
+    Eliminates repeated mutations from maps and corrects context
+    '''
+    input:
+        repeated = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'all_mutations_frequency', 'n{Nsup}_{MAFLower}_{MAF}', 'mutation_freq_table.txt'),
+        map_muts = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_with_repeated', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt')
+    params:
+        genome = config["genomeFastaOriginal"],
+        contextLength = 5,
+        n_tissues_repeated = 0.04
+    output:
+        context = os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'map_with_incorrect_context', '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        out_map = os.path.join(config["projectDir"], config["mutationCountDir"]["map"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        out_count = os.path.join(config["projectDir"], config["mutationCountDir"]["count"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt'),
+        out_context = os.path.join(config["projectDir"], config["mutationCountDir"]["context"], '{tissue}', 'n{Nsup}_{MAFLower}_{MAF}', '{sample}.txt')
+    shell:
+        '''
+        bedtools intersect -f 1 -loj -wo -a <(../bin/mutationToBed {input.map_muts}) -b <(../bin/mutationToBed <(awk -v FS="\\t" -v OFS="\\t" '$1 >= {params.n_tissues_repeated}' {input.repeated} | cut -f 4- )) | awk -v FS="\\t" -v OFS="\\t" '($4 == $12 && $5 != $13) || $13 == "."' | cut -f 1-2,4-8 > {output.context}
+        
+        python3 python/get_ref_base.py  {params.genome} {output.context} 0 1 4 {params.contextLength} > {output.out_map}
+        ml R/3.4.0
+        Rscript R/printCountsContext_fromMap.R {params.contextLength} {output.out_map} {output.out_count} {output.out_context}
+        '''

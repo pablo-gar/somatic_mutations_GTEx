@@ -1,0 +1,6 @@
+#!/bin/bash
+# Gets results from getUniqMuts and prints out the mutations that are present in more than 1 tissue
+
+repeat_n=1
+
+cat $@ | sort -k1,1 -k2,2n | uniq -c | perl -pe "s/^\h+(\d+)\h*/\\1\t/" | awk -v OFS="\t" -v n=$repeat_n '$1>n' | sort -k2,2 -k3,3n

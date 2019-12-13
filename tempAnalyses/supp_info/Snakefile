@@ -1,0 +1,292 @@
+# Run line
+
+import os, sys
+
+##--------------------------------------------------##
+## GLOBAL
+
+configfile: "../../config.json"
+
+MAF = 'n6_0.0_0.7'
+
+
+##--------------------------------------------------##
+
+
+##--------------------------------------------------##
+## PIPELINE
+
+rule all:
+    input: 
+        #Table_mutations_all
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_mutations_all.tsv.gzip"),
+        #Table_mutations_all_cancer_genes
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_mutations_all_cancer_genes.txt"),
+        #os.path.join(config["projectDir"], "supp_info", "tables", "Table_mutations_cntxt_all.txt"),
+        #Table_gtex_roadmap_tissues
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_gtex_roadmap_tissues.tsv"),
+        #Table_metadata_lm_pvalues
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_metadata_lm_pvalues.tsv"),
+        #Table_cancer_driver_genes
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_cancer_driver_genes.tsv"),
+        #Table_percentage_mutation_types
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_percentage_mutation_types.tsv"),
+        #table_of_all_oncogenic_mutations_observed
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_of_all_oncogenic_mutations_observed.tsv"),
+        #table_c_t_top_genes_GO
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_c_t_top_genes_GO.tsv"),
+        #table_c_a_top_genes_GO
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_c_a_top_genes_GO.tsv"),
+        #table_blood_c_t_as_GO
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_blood_c_t_as_GO.tsv"),
+        #Table_GTEx_tomasetti
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_GTEx_tomasetti.tsv"),
+        #Table_age_gender_cors
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_age_gender_cors.tsv"),
+        #Table_samples_tissues
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_samples_tissues.tsv"),
+        #Table_percentage_removal_per_tissue
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_percentage_removal_per_tissue.tsv")
+    
+        
+
+rule Table_percentage_removal_per_tissue:
+    input:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "filter_stats", MAF, "Whole_Blood.txt")
+    params:
+        workingDir = os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "filter_stats", MAF)
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_percentage_removal_per_tissue.tsv")
+        
+    shell:
+        '''
+        for i in {params.workingDir}/*txt
+        do
+            paste <(tail -n1 $i) <(basename $i)
+        done > {output}.temp
+        
+        cat <(head -n1 {input}) {output}.temp | grep -v EXO | perl -pe 's/.txt//' > {output}
+        '''
+        
+rule Table_samples_tissues:
+    input:
+        os.path.join(config["projectDir"], config["mutationCountDir"]["count"])
+    params:
+        maf = MAF
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_samples_tissues.tsv")
+        
+    shell:
+        '''
+        for i in {input}/*
+        do
+            tissue=$(basename $i)
+            echo -e "$tissue\\t$(ls -1 $i/{params}/*txt | wc -l)"
+        done > {output}
+        '''
+        
+rule Table_age_gender_cors:
+    input:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["mutationsVsMetadata"])
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_age_gender_cors.tsv")
+    shell:
+        '''
+        cat {input}/*AGE_correlation_table.txt {input}/*GENDER_correlation_table.txt | grep -v measure | awk -v OFS="\\t" '$9 < 0.1' | sort -k1,1 -k9,9n -k2,2nr > {output}.temp
+        cat <(head -n {input}/*AGE_correlation_table.txt) {output}.temp > {output}
+        rm  {output}.temp 
+        '''
+        
+rule Table_GTEx_tomasetti:
+    input:
+        os.path.join(config["auxiliaryFiles"]["dir"], "stem_cell_divisions.txt")
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_GTEx_tomasetti.tsv")
+    shell:
+        '''
+        grep -v NA {input} > {output}
+        '''
+        
+rule table_blood_c_t_as_GO:
+    input:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], "strand_fc", "expression_association", "Whole_Blood", "n6_0.0_0.7-GO.txt")
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_blood_c_t_as_GO.tsv")
+    shell:
+        '''
+        cat <(head -n1 {input}) <(grep C_T {input} | awk -v FS="\\t" -v OFS="\\t" '$8 < 0.05') | cut -f 1-8 > {output}
+        '''
+        
+rule table_c_a_top_genes_GO:
+    input:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_topGenes_GO", MAF)
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_c_a_top_genes_GO.tsv")
+    shell:
+        '''
+        for i in {input}/*/mut_type_C\>A_high_fc_GO.txt
+        do
+            tissue=$(basename $(dirname $i))
+            awk -v OFS="\\t" -v FS="\\t" -v tis="$tissue" '{{if ($8 < 0.05) print $0 "\\t" tis "\\tpositive strand bias"}}' $i
+        done > {output}.temp1
+        
+        for i in {input}/*/mut_type_C\>A_bottom_fc_GO.txt
+        do
+            tissue=$(basename $(dirname $i))
+            awk -v OFS="\\t" -v FS="\\t" -v tis="$tissue" '{{if ($8 < 0.05) print $0 "\\t" tis "\\tnegative strand bias"}}' $i
+        done > {output}.temp2
+        
+        cat {output}.temp* >  {output}
+        
+        rm {output}.temp*
+        '''
+        
+rule table_c_t_top_genes_GO:
+    input:
+        os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_topGenes_GO", MAF)
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_c_t_top_genes_GO.tsv")
+    shell:
+        '''
+        for i in {input}/*/mut_type_C\>T_high_fc_GO.txt
+        do
+            tissue=$(basename $(dirname $i))
+            awk -v OFS="\\t" -v FS="\\t" -v tis="$tissue" '{{if ($8 < 0.05) print $0 "\\t" tis "\\tpositive strand bias"}}' $i
+        done > {output}.temp1
+        
+        for i in {input}/*/mut_type_C\>T_bottom_fc_GO.txt
+        do
+            tissue=$(basename $(dirname $i))
+            awk -v OFS="\\t" -v FS="\\t" -v tis="$tissue" '{{if ($8 < 0.05) print $0 "\\t" tis "\\tnegative strand bias"}}' $i
+        done > {output}.temp2
+        
+        cat {output}.temp* >  {output}
+        
+        rm {output}.temp*
+        '''
+        
+rule table_of_all_oncogenic_mutations_observed:
+    input:
+        os.path.join(config["projectDir"], config["cancer"]["root"], "driverGeneralPlots", MAF, "oncokb_mutations.txt")
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "table_of_all_oncogenic_mutations_observed.tsv")
+    shell:
+        '''
+        ml python/2.7
+        python ~/oncokb-annotator/MafAnnotator.py -i {input} -o {output}.temp
+        grep ncogenic {output}.temp > {output}
+        rm {output}.temp
+        '''
+        
+rule Table_metadata_lm_pvalues:
+    input:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["mutationsVsMetadata"])
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_metadata_lm_pvalues.tsv"),
+    shell:
+        '''
+        for i in {input}/*.pvals.txt
+        do
+            tissue=$(basename $i)
+            paste <(echo "$tissue") <(grep -v Uniquely $i)
+        done > {output}.temp
+        
+        cat <(paste <(echo tissue) <(cat {input}/*.pvals.txt | head -n1)) {output}.temp > {output}
+        
+        rm {output}.temp
+        '''
+        
+rule Table_percentages_mut_types:
+    input:
+        os.path.join(config["projectDir"], config["generalMutationAnalyses"]["countsPerMutType"])
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_percentage_mutation_types.tsv"),
+    shell:
+        '''
+        for i in {input}/*.txt
+        do
+            tissue=$(basename $i | perl -pe 's/-.*//')
+            paste <(echo "$tissue") <(tail -n+2  $i)
+        done > {output}.temp
+        
+        cat <(paste <(echo tissue) <(cat {input}/*.txt | head -n1)) {output}.temp > {output}
+        
+        rm {output}.temp
+        '''
+        
+rule Table_cancer_driver_genes:
+    input:
+        os.path.join(config["auxiliaryFiles"]["dir"], "tcga_driverMutations.txt")
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_cancer_driver_genes.tsv")
+    shell:
+        '''
+        cut -f 1 {input} | uniq > {output}
+        '''
+        
+rule Table_gtex_roadmap_tissues:
+    input:
+        os.path.join(config["auxiliaryFiles"]["dir"], "roadmap_epigenomics", "gtex_roadmap_tissues.txt")
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_gtex_roadmap_tissues.tsv")
+    shell:
+        '''
+        grep -v NA {input} > {output}
+        '''
+rule Table_mutations_all:
+    input:
+        map = os.path.join(config["projectDir"], config["mutationCountDir"]["map"])
+        #cntxt = os.path.join(config["projectDir"], config["mutationCountDir"]["context"])
+    output:
+        map = os.path.join(config["projectDir"], "supp_info", "tables", "Table_mutations_all.tsv.gzip")
+        #cntxt = os.path.join(config["projectDir"], "supp_info", "tables", "Table_mutations_cntxt_all.txt")
+    shell:
+        '''
+        original=$(pwd)
+        # Compile maps
+        cd {input.map}
+        for i in */
+        do
+            tissue=$(basename $i)
+            cd $tissue
+            for j in n6_0.0_0.7/*txt
+            do
+                sample=$(basename $j | perl -pe 's/.txt//')
+                awk -v OFS="\\t" -v sample="$sample" -v tissue="$tissue" '{{print $0 "\\t" tissue "\\t" sample}}' $j
+            done
+            cd ..
+        done | grep -v EXO > {output.map}.temp
+        
+        # Compile context ADD curly braces to inputs and outputs
+        #cd input.cntxt
+        #for i in */
+        #do
+        #    tissue=$(basename $i)
+        #    cd $tissue
+        #    for j in n6_0.0_0.7/*txt
+        #    do
+        #        sample=$(basename $j | perl -pe 's/.txt//')
+        #        grep -v N $j | awk -v OFS="\\t" -v sample="$sample" -v tissue="$tissue" '{{print $0 "\\t" tissue "\\t" sample}}'
+        #    done
+        #    cd ..
+        #done | grep -v EXO > output.cntxt.temp
+        
+        cd $original
+        # Convert ids and append subjects
+        ml R/3.4.0 
+        Rscript deidentify_ids.R {output.map}.temp 9 chr,pos,ref,alt,context,coverage,alt_count,tissue,sample_id,subject_id {output}.temp
+        gzip -c {output}.temp > {output.map}
+        #rm -f {output}.temp
+        '''
+                
+rule Table_mutations_all_cancer_genes:
+    input:
+        os.path.join(config["projectDir"], config["cancer"]["root"], "driverGeneralPlots", MAF, "all_working_mutations.txt")
+    output:
+        os.path.join(config["projectDir"], "supp_info", "tables", "Table_mutations_all_cancer_genes.txt")
+    shell:
+        '''
+        ml R/3.4.0
+        Rscript deidentify_ids.R {input} 8 NULL {output}
+        '''
+                

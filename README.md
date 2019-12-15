@@ -1,7 +1,8 @@
 This repository contains all the software and scripts used for the following study.
 
-Garcia-Nieto PE, Morrison AJ, Fraser HB. The somatic mutation landscape of the human body. BioRxiv. 2019 [link](https://www.biorxiv.org/content/10.1101/668624v1)
-Garcia-Nieto PE, Morrison AJ, Fraser HB. The somatic mutation landscape of the human body. Genome Biology. 2019 [link](https://www.biorxiv.org/content/10.1101/668624v1)
+**Garcia-Nieto PE, Morrison AJ, Fraser HB. The somatic mutation landscape of the human body. BioRxiv. 2019. [link](https://www.biorxiv.org/content/10.1101/668624v1)**
+
+**Garcia-Nieto PE, Morrison AJ, Fraser HB. The somatic mutation landscape of the human body. Genome Biology. 2019. [link](https://www.biorxiv.org/content/10.1101/668624v1)**
 
 The contents of this repository encompass:
 - A method to call DNA somatic mutations from the GTEx v7 RNA-seq data:
@@ -41,7 +42,7 @@ All raw RNA reads were downloadded from dbGaP using GTEx v7 data.
 
 The execution outline is as follows:
 
-1. Setting up configuration file and downloading all required auxiliary files.
+1. Setting up configuration files and downloading all required auxiliary files.
 2. Mapping to the human genome.
 3. Creation of readp pileup files for positions contating two different sequence calls.
 3. Per-position addition of potential artifacts for the alternate allele.
@@ -52,32 +53,62 @@ The execution outline is as follows:
 
 An in-depth description on how to execute each of these steps is described below.
 
-## Seting up configuration file and download auxiliary data
+## Seting up 
 
 ### Downloading auxiliary files
 
 Follow this [link](https://drive.google.com/a/stanford.edu/file/d/1v9ZIfkMmi7q8yh_lkn2BHFB4XDYxsERx/view?usp=sharing)
 
-Uncompress, and move to a static location. These files are a variety of genome file, gene annotations, 
+Uncompress it, and move it to a static location. These files are a variety of genome files, gene annotations, data from external databases (e.g. COSMIC, Roadmap epigenomics, TCGA), rna edit info, etc.
 
 ### Configuring
 
-Modify the file `config.json`, all buckets should be self explanatory. The file is setup as it was used for the original study, which was run on the Sherlock cluster at Stanford University
+Modify the file `config.json`, all buckets should be self explanatory. The file is setup as it was used for the original study, which was run on the Sherlock cluster at Stanford University.
 
 It's worth noting the following:
 
-- "genomeDir" is the path for the genome STAR index (see mapping for details in how to make it)
-- Any bucket containing '\*/auxiliaryFiles/[...]' should be replace with the location of the downloaded and uncompress file above: 'new\_path/auxiliaryFiles/[...]'
-- "vcfFile" and "vcfFileCommon" are paths to the genotype vcf files from the GTEx project, please access those through dbGaP, feel free to contact me for any guidance on this.
-- "projectDir" and "scratchDir" should be identical, this the root path where all results will be stored.
+- `genomeDir` is the path for the genome STAR index (see mapping for details in how to make it)
+- Any bucket containing `\*/auxiliaryFiles/[...]` should be replace with the location of the downloaded and uncompress file above: `new\_path/auxiliaryFiles/[...]`
+- `vcfFile` and `vcfFileCommon` are paths to the genotype vcf files from the GTEx project, please access those through dbGaP, feel free to contact me for any guidance on this.
+- `projectDir` and `scratchDir` should be identical, this the root path where all results will be stored.
 - Most other buckets can be left unmodified
 
-#### Cluster and parallelization
+### Cluster and parallelization set up
 
 Most pipelines are designed to run many jobs in parallel. Included there are some extra files and scripts to run snakemake on a SLURM cluster:
 
 
 - The file 'cluster.json' contains rule-specific specifications and can be used on snakemake.
 - submit.py is a custom submission script to be used for job submission on snakemake.
-- jobState is a bash script to be used by snakemake to check the sate of jobs, **this script should be added to the bash `$PATH`.**
+- jobState is a bash script to be used by snakemake to check the sate of jobs, **this script should be added to the bash `$PATH`**
 
+
+## Mapping raw RNA-seq reads, and creating pileup files
+
+The following pipeline includes:
+- Mapping to the human genome, sorting and indexing bam files, removing duplicate reads.
+- Creating coverage maps.
+- Creating read pipelup files for positions covered by two difference sequence calls
+
+### Inputs:
+- Raw rna-seq paired fastq files located in the path `fastqDir` of `config.json`. File names should have this format `{sample}_1.fastq.gz` `{sample}_2.fastq.gz`
+- SRA table with sample information, already included in `auxiliaryFiles`
+- Genome size table, already included in `auxiliaryFiles`
+
+### Outputs:
+- Sorted, without duplicate reads bam files `$mappingDir/{tissue}/{sample}_RmdupSortedAligned.out.bam`
+- Coverage maps `$root/depth_bam/{sample}.bed.gzip`
+- Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`
+
+### Execution
+
+Linear execution (this is not feasible as it would take a very large time to finish):
+```bash
+cd mappingMutationCalling_pipeline
+snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --restart-times 2 
+```
+
+Parallel execution:
+```bash
+snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --max-jobs-per-second 3 --max-status-checks-per-second 0.016 --nolock --restart-times 2 --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
+```

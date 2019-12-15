@@ -89,13 +89,16 @@ The following pipeline includes:
 - Mapping to the human genome, sorting and indexing bam files, removing duplicate reads.
 - Creating coverage maps.
 - Creating read pipelup files for positions covered by two difference sequence calls
+- Adding per-site bias information to pileup files: read position bias, mapping quality bias, sequence quality bias, strand bias, variant distance bias. 
 
-#### Inputs:
+A full description of these biases can be found in the Methods section of the publication.
+
+#### Inputs
 - Raw rna-seq paired fastq files located in the path `fastqDir` of `config.json`. File names should have this format `{sample}_1.fastq.gz` `{sample}_2.fastq.gz`
 - SRA table with sample information, already included in `auxiliaryFiles`
 - Genome size table, already included in `auxiliaryFiles`
 
-#### Outputs:
+#### Outputs
 - Sorted, without duplicate reads bam files `$mappingDir/{tissue}/{sample}_RmdupSortedAligned.out.bam`
 - Coverage maps `$root/depth_bam/{sample}.bed.gzip`
 - Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`
@@ -110,5 +113,44 @@ snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --restar
 
 Parallel execution:
 ```bash
+cd mappingMutationCalling_pipeline
 snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --max-jobs-per-second 3 --max-status-checks-per-second 0.016 --nolock --restart-times 2 --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
+```
+
+## Mutation calling
+
+The following pipeline includes:
+- Calling mutations based on coverage and number of read supporting alt allele, while incorporating sequencing error probabilties.
+- Label and remove false positives:
+    - Black listed regions.
+    - RNA edits.
+    - Splicing junction errors.
+    - Sequencing errors.
+    - All biases described in previous section 
+- Remove mutations from systematic artifacts based on a pseudo Panel of Normals (PoN)
+- Remove hypermutated samples
+
+A full description of the false-positive removal can be found in the Methods section of the publication.
+
+#### Inputs
+- Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`. *From previous section*
+- Different supporting files included in `auxiliaryFiles`
+
+#### Outputs
+- Mutation maps per sample `$mutationCountDir:$map/{tissue}/n6_0.0_0.7/{sample}.txt`
+- Counts of mutations following a 6-type profile (C\>T, C\>G, C\>T, C\>A, T\>G, T\>A, T\>C) `$mutationCountDir:$context/{tissue}/n6_0.0_0.7/{sample}.txt`
+- Counts of mutations with pentanucleotide context per sample `$mutationCountDir:$context/{tissue}/n6_0.0_0.7/{sample}.txt`
+
+#### Execution
+
+Linear execution (this is not feasible as it would take a very large time to finish):
+```bash
+cd mutationCalling
+snakemake --keep-going --restart-times 2 --nolock 
+```
+
+Parallel execution:
+```bash
+cd mutationCalling
+snakemake --keep-going --max-jobs-per-second 15 --restart-times 2 --max-status-checks-per-second 0.016 --nolock --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
 ```

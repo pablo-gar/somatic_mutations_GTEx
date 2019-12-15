@@ -55,13 +55,13 @@ An in-depth description on how to execute each of these steps is described below
 
 ## Seting up 
 
-### Downloading auxiliary files
+#### Downloading auxiliary files
 
 Follow this [link](https://drive.google.com/a/stanford.edu/file/d/1v9ZIfkMmi7q8yh_lkn2BHFB4XDYxsERx/view?usp=sharing)
 
 Uncompress it, and move it to a static location. These files are a variety of genome files, gene annotations, data from external databases (e.g. COSMIC, Roadmap epigenomics, TCGA), rna edit info, etc.
 
-### Configuring
+#### Configuring
 
 Modify the file `config.json`, all buckets should be self explanatory. The file is setup as it was used for the original study, which was run on the Sherlock cluster at Stanford University.
 
@@ -73,7 +73,7 @@ It's worth noting the following:
 - `projectDir` and `scratchDir` should be identical, this the root path where all results will be stored.
 - Most other buckets can be left unmodified
 
-### Cluster and parallelization set up
+#### Cluster and parallelization set up
 
 Most pipelines are designed to run many jobs in parallel. Included there are some extra files and scripts to run snakemake on a SLURM cluster:
 
@@ -90,17 +90,17 @@ The following pipeline includes:
 - Creating coverage maps.
 - Creating read pipelup files for positions covered by two difference sequence calls
 
-### Inputs:
+#### Inputs:
 - Raw rna-seq paired fastq files located in the path `fastqDir` of `config.json`. File names should have this format `{sample}_1.fastq.gz` `{sample}_2.fastq.gz`
 - SRA table with sample information, already included in `auxiliaryFiles`
 - Genome size table, already included in `auxiliaryFiles`
 
-### Outputs:
+#### Outputs:
 - Sorted, without duplicate reads bam files `$mappingDir/{tissue}/{sample}_RmdupSortedAligned.out.bam`
 - Coverage maps `$root/depth_bam/{sample}.bed.gzip`
 - Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`
 
-### Execution
+#### Execution
 
 Linear execution (this is not feasible as it would take a very large time to finish):
 ```bash

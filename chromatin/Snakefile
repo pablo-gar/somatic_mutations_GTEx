@@ -124,7 +124,6 @@ rule get_bigwig_exon_signal:
         os.path.join(config["projectDir"], "chromatin", "roadmap_exon_signal", "{roadmapId}-{mod}.txt")
     shell:
         """
-        ml kent
         
         bigWigAverageOverBed {input} {params} {output}
         """
@@ -210,7 +209,6 @@ rule plot_chromatin_mutations:
         os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "{tissue}-{roadmapId}.txt")
     shell:
         """
-        ml R/3.4.0
         Rscript R/mutation_chromatin_correlation.R {output} {input.chromatin} {params}/*
         """
         
@@ -225,7 +223,6 @@ rule plot_chromatin_all_tissues:
         os.path.join(config["projectDir"], "chromatin", "chromatin_mutations", "tissue_plots", "{maf}", "1_all_tissues.pdf")
     shell:
         '''
-        module load R/3.4.0
         cd R
         Rscript plot_all_tissues_correlations.R {params} {output}
         '''

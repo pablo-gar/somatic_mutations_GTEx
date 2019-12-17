@@ -19,14 +19,15 @@ The contents of this repository encompass:
     - Selection dynamics.
     - Assessment of cancer-like characteristic of somatic mutations
     
-***This document is not intended to be thouroguh description of methods or results. It is a guide that serves as a reproducibility reference for the code use in the aforementioned study.***
+***This document is not intended to be a thorough description of methods or results. It is a guide that serves as a reproducibility reference for the code use in the aforementioned study.***
 
-For a complete description of the methods and the results of theses analysis please refer to the publication
+For a complete description of the methods and results please refer to the publication.
 
 ## Requirements
-- Unix -- all software was run on bash
+- Unix -- all software was run on bash in Ubuntu 14.04
 - snakemake -- for all pipelines
-- STAR 2.5.2a (sequence aligner)
+- STAR 2.5.2a -- sequence aligner
+- kent from ucscGenomeBrowser
 - BCFtools 1.6
 - bedtools 2.26
 - samtools 1.6
@@ -48,7 +49,7 @@ The execution outline is as follows:
 1. Setting up configuration files and downloading all required auxiliary files.
 2. Creating a genome index for the STAR sequence aligner.
 3. Mapping to the human genome.
-4. Creation of readp pileup files for positions contating two different sequence calls.
+4. Creation of read pileup files for positions contating two different sequence calls.
 5. Per-position addition of potential artifacts for the alternate allele.
 6. Mutation calling and removal of likely false-positives.
 7. Elimination of potential systematic artifacts (Panel of Normals).
@@ -133,7 +134,7 @@ cd mappingMutationCalling_pipeline
 snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --restart-times 2 
 ```
 
-Parallel execution:
+Parallel execution in a SLURM cluster:
 ```bash
 cd mappingMutationCalling_pipeline
 snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --max-jobs-per-second 3 --max-status-checks-per-second 0.016 --nolock --restart-times 2 --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
@@ -171,8 +172,103 @@ cd mutationCalling
 snakemake --keep-going --restart-times 2 --nolock 
 ```
 
-Parallel execution:
+Parallel execution in a SLURM cluster:
 ```bash
 cd mutationCalling
 snakemake --keep-going --max-jobs-per-second 15 --restart-times 2 --max-status-checks-per-second 0.016 --nolock --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
+```
+
+## General analyses
+
+The following pipeline includes data analysis and plotting scripts for:
+- Correction of mutations based on sequencing depth.
+- Artifact analysis.
+- Mutation statistics -- variant allele frequency, mutation density across subjects and samples, etc.
+- Cross-tissue comparison of mutation maps.
+- Phenotype associations (age, ethnicity, sex).
+- Mutation profile analysis (tSNE).
+- Gene expression association with mutation load.
+- Association between gene expression and mutation load
+
+These analyses span Figures 1,2,4 in the publication.
+
+##### Inputs
+- Mutation maps and counts from [above](#mutation-calling)
+- A variety supporting files included in `auxiliaryFiles`
+
+#### Outputs
+- A variety of plots and text files. This files will be located within the paths described in the several paths of `generalMutationAnalyses`  bucket from `config.json`
+
+#### Execution
+
+Linear execution (this is not feasible as it would take a very large time to finish):
+```bash
+cd generalMutationAnalyses
+snakemake --nolock --printshellcmds --keep-going 
+```
+
+Parallel execution in a SLURM cluster:
+```bash
+cd generalMutationAnalyses
+snakemake --nolock --printshellcmds --keep-going --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
+```
+
+## Chromatin analyses
+
+The following pipeline includes data analysis and plotting scripts for:
+- Downloading signal maps for selected tissues and chromatin marks from the Roadmap epigenomics project.
+- Processing of chromating signal.
+- Association analysis between chromatin and mutation load.
+
+These analyses are included in Figure 2 of the publication.
+
+##### Inputs
+- Mutation maps and counts from [above](#mutation-calling)
+- A variety supporting files included in `auxiliaryFiles`
+
+#### Outputs
+- A variety of plots and text files. This files will be located within `$projectDir/chromatin/`, where `$projectDir` is the `projectDir` bucket in `config.json
+
+#### Execution
+
+Linear execution (this is not feasible as it would take a very large time to finish):
+```bash
+cd chromatin
+snakemake --restart-times 1 --nolock --printshellcmds --keep-going 
+```
+
+Parallel execution in a SLURM cluster:
+```bash
+cd chromatin
+snakemake --restart-times 1 --nolock --printshellcmds --keep-going --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
+```
+
+## Strand bias and selection analyses
+
+The following pipeline includes data analysis and plotting scripts for:
+- Processing and analysis of mutations in the transcribed and non-transcribed strands.
+- Selection analyses using dN/dS.
+- Selection analyses using VAF comparison.
+
+These analyses are included in Figures 1,3 of the publication.
+
+##### Inputs
+- Mutation maps and counts from [above](#mutation-calling)
+- A variety supporting files included in `auxiliaryFiles`
+
+#### Outputs
+- A variety of plots and text files. This files will be located within the paths described in the several paths of `selectionDir`  bucket from `config.json`
+
+#### Execution
+
+Linear execution:
+```bash
+cd selectionAnalyses
+snakemake --keep-going 
+```
+
+Parallel execution in a SLURM cluster:
+```bash
+cd selectionAnalyses
+snakemake --max-jobs-per-second 3 --max-status-checks-per-second 0.016 --cluster-config ../cluster.json --cluster-status jobState --jobs 1000 --keep-going --cluster "../submit.py"
 ```

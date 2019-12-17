@@ -68,7 +68,7 @@
     "contextLength" : "3",
     "exonJunctionDistanceCutoff" : "7",
     
-    "pileupPartitionSize" : "25000000",
+    chromatinpileupPartitionSize" : "25000000",
     
     "coverageCutoff" : "40",
     "nSupportingCutoff" : "15",

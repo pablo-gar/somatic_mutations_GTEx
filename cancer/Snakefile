@@ -113,7 +113,6 @@ rule get_mutationEnrichmentCancerDrivers:
         os.path.join(config["projectDir"], config["cancer"]["driverEnrichment"], '{tissue}', '{maf}', 'permutationsPvalsPlot.pdf')
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverGenesOverlap.R {output} {params} {input}/*
         '''
@@ -141,7 +140,6 @@ rule plot_cancerEnrichment_allGenes:
         os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'all_drivers.pdf')
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverGenesOverlap_plot.R {output} {params}
         '''
@@ -156,7 +154,6 @@ rule plot_cancerEnrichment_individualGenes:
         os.path.join(config["projectDir"], config["cancer"]["root"], "driverEnrichmentPlots", '{maf}', 'individual_drivers_histogram.pdf'),
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverGenesOverlap_plotByGene.R {output} {params}
         '''
@@ -172,7 +169,6 @@ rule get_driverMutations:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'expression', '{maf}', '{tissue}.txt')
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverMutationsOverlap.R {output} {params} {input}/*
         '''
@@ -188,7 +184,6 @@ rule get_driverMutations_long:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations_long_list', 'expression', '{maf}', '{tissue}.txt')
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverMutationsOverlap.R {output} {params} {input}/*
         '''
@@ -204,7 +199,6 @@ rule get_cancer_mutations_false_positives:
         false_pos_table = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives', '{maf}', 'cancer_mutations_false_positives.txt') 
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript create_falseNegative_mutations_table.R {params} {output}
         '''
@@ -220,7 +214,6 @@ rule get_cancer_mutations_false_positives_long_list:
         false_pos_table = os.path.join(config["projectDir"], config["cancer"]["root"], 'driverMutations', 'mutations_false_positives_long_list', '{maf}', 'cancer_mutations_false_positives.txt') 
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript create_falseNegative_mutations_table.R {params} {output}
         '''
@@ -238,7 +231,6 @@ rule run_dndscv_tissues_merged:
         os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos", "{maf}", "dndsout_globalInds.txt")
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript dndsInMutationMaps_simpleAllGenes.R {params.outprefix} {input.false_pos} {params.maps}
         '''
@@ -256,7 +248,6 @@ rule run_dndscv_tissues_merged_long_list:
         os.path.join(config["projectDir"], config["cancer"]["root"], "dndsout_tissuesMerged_noFalsePos_long_list", "{maf}", "dndsout_globalInds.txt")
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript dndsInMutationMaps_simpleAllGenes.R {params.outprefix} {input.false_pos} {params.maps}
         '''
@@ -282,7 +273,6 @@ rule plot_all_info_cancerDrivers:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots', '{maf}', 'dnds_mutations.pdf')
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverGenes_plotTissues.R {params}
         '''
@@ -308,7 +298,6 @@ rule plot_all_info_cancerDrivers_long_list:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'driverGeneralPlots_long_list', '{maf}', 'dnds_mutations.pdf')
     shell:
         '''
-        module load R/3.4.0
         cd R/cancer
         Rscript mutationsDriverGenes_plotTissues.R {params}
         '''
@@ -375,7 +364,6 @@ rule get_cosmic_mutations_randomized_maps:
         # Randomizing map
         # 
         # Append sequence
-        ml bedtools/2.28.0
         
         # only work with a small subset of data
         map_size=$(cat {input} | wc -l)
@@ -424,7 +412,6 @@ rule get_cosmic_mutations_randomized_maps:
 #        mapFile = os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'map_randomized', '{tissue}', '{maf}', '{sample}.txt')
 #    shell:
 #        '''
-#        ml R/3.4.0
 #        
 #        cd R/cancer/
 #        
@@ -479,7 +466,6 @@ rule get_cosmic_mutations_plot:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'percentage_overlap_all_tissues_wrongMut.pdf')
     shell:
         '''
-        ml R/3.4.0
         cd R/cancer/
         Rscript cosmic_mutations_plot.R {params} {output}
         '''
@@ -495,7 +481,6 @@ rule get_cosmic_mutations_randomized_plot:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'randomized_percentage_overlap_all_tissues_wrongMut.pdf')
     shell:
         '''
-        ml R/3.4.0
         cd R/cancer/
         Rscript cosmic_mutations_plot.R {params} {output}
         '''
@@ -511,7 +496,6 @@ rule get_All_mutations_VAF_plot:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'VAF_missense_nonsense', '{maf}', 'last_exon_{last_exon}_All.pdf')
     shell:
         '''
-        ml R/3.4.0
         cd R/cancer/
         Rscript plot_VAF_different_mutation_impacts.R {params} {input}
         '''
@@ -526,7 +510,6 @@ rule get_cosmic_mutations_VAF_plot:
         os.path.join(config["projectDir"], config["cancer"]["root"], 'cosmic_mutations', 'plots', '{maf}', 'vaf_comparison.pdf')
     shell:
         '''
-        ml R/3.4.0
         cd R/cancer/
         Rscript cosmic_vaf_comparisons.R {params} {output}
         '''

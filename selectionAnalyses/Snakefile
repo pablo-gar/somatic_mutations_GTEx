@@ -1,9 +1,3 @@
-# Run line
-# snakemake --cluster-config cluster.json --cluster-status jobState --jobs 1900 --cluster "sbatch --parsable --partition={cluster.partition} --time={cluster.time} --cpus-per-task={cluster.cpus} --mem={cluster.mem} --job-name={cluster.jobname} --output={cluster.output} --error={cluster.error}"
-# DAG
-# snakemake --dag  | dot -Tsvg > dag.svg
-# snakemake --dag  | dot -Tpng > dag.png
-
 
 import os
 
@@ -168,7 +162,6 @@ rule run_dndscv:
 
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript dndsInMutationMaps.R {params} {input}/*
         cd ../
@@ -185,7 +178,6 @@ rule plot_globalDndscv:
         os.path.join(config["projectDir"], config["selectionDir"]["dndsGlobPlots"], "{maf}", "dnds_dotPlot_wall_expression_AllExpressed_facet_maf.pdf")
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript plot_dndsGlobal.R {params.dndsoutDir} {params.maf} {params.outPrefix}
         '''
@@ -199,7 +191,6 @@ rule annotate_dndsTables:
         os.path.join(config["projectDir"], config["selectionDir"]["dndsout_annotatedTables"], "{tissue}-{maf}.annotatedMutTable.txt")
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript annotate_dnds_table.R {input} {output}
         '''
@@ -218,7 +209,6 @@ rule plot_stranDifferences:
         os.path.join(config["projectDir"], config["selectionDir"]["strand_differences"], "{tissue}-{maf}.per_gene_fc_strand.txt")
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript plot_strandDifferences.R {input} {output}
         '''
@@ -277,7 +267,6 @@ rule plot_RNA_edit_enrichment:
         os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment", "{tissue}", "{maf}", "A>G_all_bar_counts.pdf")
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript get_RNA_edit_enrichment.R {params} {input.mutation_file}
         '''
@@ -299,7 +288,6 @@ rule plot_RNA_edit_exo:
         os.path.join(config["projectDir"], config["selectionDir"]["root"], "rna_edit_enrichment_EXO", "{tissue}", "{maf}", "A>G_all_bar_counts.pdf")
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript get_RNA_edit_enrichment.R {params} {input.mutation_file} {input.mutation_file_rna}
         '''
@@ -313,7 +301,6 @@ rule do_GO_top_genes_strand_bias:
         os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_topGenes_GO", "{maf}", "{tissue}", "allDone.txt")
     shell:
         '''
-        module load R/3.4.0
         cd R
         Rscript GO_top_fc.R {params}/ {input}
         '''
@@ -328,7 +315,6 @@ rule plot_strandDifferences_compiled:
         os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_differences_compiled", "{maf}_avg_box.pdf")
     shell:
         '''
-        module load R/3.4.0
         cd R
         Rscript plot_strandDifferences_variance_heatmap.R {params} {input}
         '''
@@ -348,7 +334,6 @@ rule plot_fc_strand_cors_gwas_tables:
         expand(os.path.join(config["projectDir"], config["mutationCountDir"]["root"], 'strand_fc', '{{maf}}', '{tissue}-fcSrands_allInds_noMetadata.txt'), tissue = TISSUES)
     shell:
         '''
-        module load R/3.4.0
         cd R
         Rscript plot_strandDifferences_multiple_tissues.R {params} {input}
         '''
@@ -367,7 +352,6 @@ rule plot_fc_strand_two_tissues:
         blood = os.path.join(config["projectDir"], config["selectionDir"]["root"], "strand_difference_two_tissue_cors", "Lung.Whole_Blood_C>T.pdf")
     shell:
         '''
-        module load R/3.4.0
         cd R
         Rscript plot_strandDifferences_2_tissues.R {params.artery} {input.artery} {input.nerve}
         Rscript plot_strandDifferences_2_tissues.R {params.blood} {input.lung} {input.blood}
@@ -385,7 +369,6 @@ rule run_dndscv_tissues_merged:
         os.path.join(config["projectDir"], config["selectionDir"]["root"], "dndsout_tissuesMerged", "{maf}", "dndsout_globalInds.txt")
     shell:
         '''
-        module load R/3.4.0
         cd R/
         Rscript dndsInMutationMaps_simpleAllGenes.R {params}
         cd ../
@@ -403,7 +386,6 @@ rule mutation_association_expression:
         os.path.join(config["projectDir"],  config["generalMutationAnalyses"]["root"], 'strand_fc', 'expression_association', '{tissue}', '{maf}-GO.txt')
     shell:
         """
-        module load R/3.4.0
         cd ../generalMutationAnalyses/R
         Rscript mutations_RNAexpression_association.R {params} {input} {output}
         """
@@ -418,8 +400,6 @@ rule do_GWAS:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "GWAS", '{tissue}-{maf}.txt')
     shell:
         """
-        module load R/3.4.0
-        module load mariadb/10.2.11
         cd ../generalMutationAnalyses/R
         Rscript mutations_GWAS.R {input} {params} {output}
         """
@@ -436,7 +416,6 @@ rule blood_cell_type_fc_strand_cors:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "{tissue}-cell_types", "{maf}-correlation_table_strand_bias_cell_types.txt")
     shell:
         '''
-        ml R/3.4.0
         cd R
         Rscript blood_fc_correlation_cell_types.R {params} {input}
         '''
@@ -451,7 +430,6 @@ rule lung_cell_type_fc_strand_cors:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "lung_cell_types", "{maf}-C_T_strand_asymmetry_cors.txt")
     shell:
         '''
-        ml R/3.4.0
         cd R
         Rscript lung_fc_correlation_neutrophils.R {params} {input}
         '''
@@ -468,7 +446,6 @@ rule strand_fc_vs_mutationSignature_cors:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
     shell:
         """
-        module load R/3.4.0
         cd R/
         Rscript association_stand_fc_mutationSignatures.R {input} {params}
         """
@@ -485,7 +462,6 @@ rule strand_fc_vs_mutationSignature_cors_kucab:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_kucab_associations_cor", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
     shell:
         """
-        module load R/3.4.0
         cd R/
         Rscript association_stand_fc_mutationSignatures.R {input} {params}
         """
@@ -501,7 +477,6 @@ rule strand_fc_vs_mutationLoad_normalized:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationLoad_associations", '{tissue}', '{maf}', "mut_type_C_A_scatter.pdf")
     shell:
         """
-        module load R/3.4.0
         cd R/
         Rscript association_mutationLoad_fc_strands.R {input} {params}
         """
@@ -518,7 +493,6 @@ rule strand_fc_vs_mutationLoad_percentage:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_cor_totalMuts", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
     shell:
         """
-        module load R/3.4.0
         cd R/
         Rscript association_stand_fc_mutationSignatures.R {input} {params}
         """
@@ -535,7 +509,6 @@ rule strand_fc_vs_mutationSignature_nnls:
         os.path.join(config["projectDir"], config["generalMutationAnalyses"]["root"], 'strand_fc', "mutationSignature_associations_nnls", '{tissue}', '{maf}', "mut_type_C_A_signature_1_scatter.pdf")
     shell:
         """
-        module load R/3.4.0
         cd R/
         Rscript association_stand_fc_mutationSignatures.R {input} {params}
         """
@@ -568,7 +541,6 @@ rule create_readTranscriptomeDiversity:
         os.path.join(config["auxiliaryFiles"]["dir"], "transcriptome_shannon_diversity.txt")
     shell:
         '''
-        module load R/3.4.0
         Rscript get_transcriptome_diversity.R {output} 
         '''
 

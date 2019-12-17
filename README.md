@@ -19,11 +19,14 @@ The contents of this repository encompass:
     - Selection dynamics.
     - Assessment of cancer-like characteristic of somatic mutations
     
+***This document is not intended to be thouroguh description of methods or results. It is a guide that serves as a reproducibility reference for the code use in the aforementioned study.***
+
 For a complete description of the methods and the results of theses analysis please refer to the publication
 
 ## Requirements
 - Unix -- all software was run on bash
 - snakemake -- for all pipelines
+- STAR 2.5.2a (sequence aligner)
 - BCFtools 1.6
 - bedtools 2.26
 - samtools 1.6
@@ -43,13 +46,14 @@ All raw RNA reads were downloadded from dbGaP using GTEx v7 data.
 The execution outline is as follows:
 
 1. Setting up configuration files and downloading all required auxiliary files.
-2. Mapping to the human genome.
-3. Creation of readp pileup files for positions contating two different sequence calls.
-3. Per-position addition of potential artifacts for the alternate allele.
-4. Mutation calling and removal of likely false-positives.
-5. Elimination of potential systematic artifacts (Panel of Normals).
-6. Elimination of hyper-mutated samples.
-7. High-level analyses
+2. Creating a genome index for the STAR sequence aligner.
+3. Mapping to the human genome.
+4. Creation of readp pileup files for positions contating two different sequence calls.
+5. Per-position addition of potential artifacts for the alternate allele.
+6. Mutation calling and removal of likely false-positives.
+7. Elimination of potential systematic artifacts (Panel of Normals).
+8. Elimination of hyper-mutated samples.
+9. High-level analyses
 
 An in-depth description on how to execute each of these steps is described below.
 
@@ -82,6 +86,23 @@ Most pipelines are designed to run many jobs in parallel. Included there are som
 - submit.py is a custom submission script to be used for job submission on snakemake.
 - jobState is a bash script to be used by snakemake to check the sate of jobs, **this script should be added to the bash `$PATH`**
 
+## Creating genome index for STAR
+
+This is the only step not included as a downdload or a step in any pipeline due to large memory and disk use.
+
+#### Inputs
+- Human genome Hg19 with common SNPs masked as "N". Included in the `auxiliaryFiles`, the path to the file should be the `genomeFasta` bucket in `config.json`
+- Genome annotation in gft format. Included in the `auxiliaryFiles`, the path to the file should be the `auxiliaryFiles:GTF_gtex` bucket in `config.json`
+
+#### Outputs
+- Genome index for STAR
+
+#### Execution
+Replace variables ($) with the associated value in the `config.json` file
+
+```bash
+STAR --runThreadN 16 --runMode genomeGenerate --genomeDir ${genomeDir} --genomeFastaFile ${genomeFasta} --sjdbGTFfile ${auxiliaryFiles:GTF_gtex} --sjdbOverhang 99
+```
 
 ## Mapping raw RNA-seq reads, and creating pileup files
 
@@ -94,14 +115,15 @@ The following pipeline includes:
 A full description of these biases can be found in the Methods section of the publication.
 
 #### Inputs
-- Raw rna-seq paired fastq files located in the path `fastqDir` of `config.json`. File names should have this format `{sample}_1.fastq.gz` `{sample}_2.fastq.gz`
-- SRA table with sample information, already included in `auxiliaryFiles`
-- Genome size table, already included in `auxiliaryFiles`
+- Raw rna-seq paired fastq files. Included in the `auxiliaryFiles` download, the path to the file should be the `fastqDir` bucket in `config.json`. File names should have this format `{sample}_1.fastq.gz` `{sample}_2.fastq.gz`
+- SRA table with sample information. Included in the `auxiliaryFiles` download, the path to the file should be the `sraTable` bucket in `config.json`
+- Genome size table. Included in the `auxiliaryFiles` download, the path to the file should be the `genomeSizeFile` bucket in `config.json`
+- A variety supporting files included in `auxiliaryFiles`
 
 #### Outputs
-- Sorted, without duplicate reads bam files `$mappingDir/{tissue}/{sample}_RmdupSortedAligned.out.bam`
-- Coverage maps `$root/depth_bam/{sample}.bed.gzip`
-- Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`
+- Sorted, without duplicate reads bam files. Files will be locate in `$mappingDir/{tissue}/{sample}_RmdupSortedAligned.out.bam`, where `$mappingDir` is the `mappingDir` bucket in `config.json`
+- Coverage maps `$root/depth_bam/{sample}.bed.gzip`. Where `$root` is the `projectDir` bucket in `config.json`
+- Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`. Where `$pileupDir` is relative and is the `pileupDir` bucket in `config.json`
 
 #### Execution
 
@@ -134,10 +156,10 @@ A full description of the false-positive removal can be found in the Methods sec
 
 #### Inputs
 - Pileup files for positions with two sequence calls `$pileupDir/{tissue}/{sample}.txt`. *From previous section*
-- Different supporting files included in `auxiliaryFiles`
+- A variety supporting files included in `auxiliaryFiles`
 
 #### Outputs
-- Mutation maps per sample `$mutationCountDir:$map/{tissue}/n6_0.0_0.7/{sample}.txt`
+- Mutation maps per sample `${mutationCountDir:map}/{tissue}/n6_0.0_0.7/{sample}.txt`.
 - Counts of mutations following a 6-type profile (C\>T, C\>G, C\>T, C\>A, T\>G, T\>A, T\>C) `$mutationCountDir:$context/{tissue}/n6_0.0_0.7/{sample}.txt`
 - Counts of mutations with pentanucleotide context per sample `$mutationCountDir:$context/{tissue}/n6_0.0_0.7/{sample}.txt`
 

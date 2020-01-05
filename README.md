@@ -156,7 +156,7 @@ A full description of these biases can be found in the Methods section of the pu
 Linear execution (this is not feasible as it would take a very large time to finish):
 ```bash
 cd mappingMutationCalling_pipeline
-``oing --restart-times 2 
+snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --restart-times 2 
 ```
 
 Parallel execution in a SLURM cluster:
@@ -194,7 +194,7 @@ A full description of the false-positive removal process can be found in the Met
 Linear execution:
 ```bash
 cd mutationCalling
-snakemake --snakefile SnakefilePileup.smk --printshellcmds --keep-going --restart-times 2 
+snakemake --snakefile --printshellcmds --keep-going --restart-times 2 
 ```
 
 Parallel execution in a SLURM cluster:
@@ -235,7 +235,7 @@ snakemake --keep-going --restart-times 2 --nolock
 Parallel execution in a SLURM cluster:
 ```bash
 cd generalMutationAnalyses
-``es 2 --keep-going --max-jobs-per-second 3 --max-status-checks-per-second 0.016 --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --keep-going --cluster "../submit.py"
+snakemake --restart-times 2 --keep-going --max-jobs-per-second 3 --max-status-checks-per-second 0.016 --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --keep-going --cluster "../submit.py"
 ```
 
 ## Chromatin analyses
@@ -294,8 +294,8 @@ snakemake --keep-going --restart-times 2 --nolock
 
 Parallel execution in a SLURM cluster:
 ```bash
-``ctionAnalyses
-snakemake --restart-times 1 --nolock --printshellcmds --keep-going --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
+cd selectionAnalyses
+snakemake --restart-times 2 --nolock --printshellcmds --keep-going --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
 ```
 
 ## Cancer analyses
@@ -325,6 +325,6 @@ snakemake --keep-going --restart-times 2 --nolock
 Parallel execution in a SLURM cluster:
 ```bash
 cd cancer
-``atus-checks-per-second 0.016 --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --keep-going --cluster "../submit.py"
+snakemake --restart-times 2 --nolock --printshellcmds --keep-going --cluster-config ../cluster.json --cluster-status jobState --jobs 500 --cluster "../submit.py"
 ```
 
